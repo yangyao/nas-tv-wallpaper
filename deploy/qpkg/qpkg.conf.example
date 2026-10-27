@@ -1,0 +1,5 @@
+# Install as /etc/config/nas-tv-wallpaper.conf (root-owned, mode 600).
+# Existing non-root NAS user with read access to the photo share.
+[Service]
+User = nasphotos
+RuntimeDir = /share/homes/nasphotos/.local/share/nas-tv-wallpaper

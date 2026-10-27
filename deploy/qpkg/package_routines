@@ -1,0 +1,10 @@
+# Runtime configuration and data are external and survive upgrades/removal.
+pkg_check_requirement(){
+ conf=/etc/config/nas-tv-wallpaper.conf
+ [ -r "$conf" ] || err_log "Configure /etc/config/nas-tv-wallpaper.conf before installation; see README"
+ service_user=$($CMD_GETCFG Service User -f "$conf")
+ runtime=$($CMD_GETCFG Service RuntimeDir -f "$conf")
+ id "$service_user" >/dev/null 2>&1 || err_log "Configured service user does not exist"
+ [ "$(id -u "$service_user")" != 0 ] || err_log "Service user must not be root"
+ [ -r "$runtime/server.env" ] || err_log "RuntimeDir/server.env is required"
+}
