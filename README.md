@@ -9,7 +9,8 @@ Android TV launcher with opt-in, locally cached NAS photo wallpaper, plus a smal
 - JPEG only for now. Conservative metadata and filename filters reject many screenshots/downloads, but are not semantic photo recognition. HEIC and images lacking camera metadata are skipped.
 - Recent selections are remembered to reduce repeats; copies at different paths can still repeat.
 - Each requested photo becomes a 1920×1080 JPEG with the complete photo centred over a softened backdrop. Originals are read-only; exported metadata is stripped.
-- TV wallpaper shows **two photographs side by side**, changing every two minutes. Each panel crops the centre of the pre-rendered frame: common 3:4 and 9:16 portraits remain complete, while landscape/square photos can be cropped. With only one cached image, a single-image fallback is used.
+- TV wallpaper changes every two minutes: **landscape originals display individually; portrait/square originals pair side by side**. Pairing excludes landscapes and refits the complete photo foreground over the soft backdrop. If there is no second portrait, show one complete image.
+- Layout uses EXIF-oriented original dimensions, not the padded 16:9 cache frame. Dimensions are cached locally; an authenticated HEAD request can hydrate older image caches without redownloading images or reading original JPEGs. Unknown dimensions safely use single-image display until metadata is available.
 - TV downloads only while Home is visible. After six hours, returning Home requests another batch. No scheduled wakeups or downloads during video playback.
 - The first three downloads can appear immediately. Later batches normally need at least ten completed images (or the entire shorter batch) before switching atomically. Failed requests retain the cache and retry no sooner than 30 minutes later.
 - Disabling restores normal local wallpaper. The existing clock screensaver does not use the NAS photo cache.
@@ -57,7 +58,7 @@ Health check (use your address):
 wget -qO- http://192.168.1.10:8791/health
 ```
 
-Expected response: `{"ok":true}`. `/health` exposes no photo information. Authenticated endpoints: `POST /v1/batch` (`count` and optional `exclude` IDs), `GET /v1/photos/{id}`. There is no arbitrary file/path endpoint.
+Expected response: `{"ok":true}`. `/health` exposes no photo information. Authenticated endpoints: `POST /v1/batch` (`count` and optional `exclude` IDs), `GET /v1/photos/{id}`, and `HEAD /v1/photos/{id}`. GET/HEAD return `X-Photo-Width` and `X-Photo-Height` for the EXIF-oriented original. HEAD reads only bounded saved selection history, with no image conversion. There is no arbitrary file/path endpoint.
 
 ## QNAP QPKG
 
@@ -110,6 +111,6 @@ The existing build uses your local Android debug signing configuration. Keep you
 
 ## Validation and limits
 
-Go race tests and Android unit tests/lint/release compilation are the automated checks. The earlier personal deployment validated QNAP SSH package installation, non-root service operation, health, startup/shutdown link creation, TV cache fallback, feature disable and same-signature APK rollback. The configurable public QPKG is a subsequent implementation; installation and reboot startup need validation on the destination system. Two-photo wallpaper needs on-screen verification on the destination TV.
+Go race tests and Android unit tests/lint/release compilation are the automated checks. The earlier personal deployment validated QNAP SSH package installation, non-root service operation, health, startup/shutdown link creation, TV cache fallback, feature disable and same-signature APK rollback. The configurable public QPKG is a subsequent implementation; installation and reboot startup need validation on the destination system. Landscape single-image display was verified on an Android TV deployment. Portrait selection and complete-foreground geometry have unit coverage; verify both layouts on the destination TV.
 
 Do not commit runtime files, tokens, photos, device dumps or signing keys. Generated packages and local backups are ignored. This project is not affiliated with QNAP, Sony, Google or Apple.

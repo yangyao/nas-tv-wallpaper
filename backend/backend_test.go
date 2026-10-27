@@ -189,3 +189,32 @@ func TestRenderFitsWithoutCropping(t *testing.T) {
 		t.Fatal("portrait not contained over dim backdrop")
 	}
 }
+
+func TestPhotoDimensionsHeadWithoutReadingOriginal(t *testing.T) {
+	s := fakeLibrary(t)
+	id := "0123456789abcdef0123456789abcdef"
+	for _, tc := range []struct {
+		orientation   int
+		width, height string
+	}{{1, "4000", "3000"}, {6, "3000", "4000"}, {8, "3000", "4000"}} {
+		s.history.Photos[id] = Photo{ID: id, Path: "does-not-exist.jpg", Meta: PhotoMeta{Width: 4000, Height: 3000, Orientation: tc.orientation}}
+		app := &Server{sampler: s, token: "test-token-not-for-production", cache: t.TempDir(), imageGate: make(chan struct{}, 1)}
+		for _, auth := range []bool{false, true} {
+			r := httptest.NewRequest(http.MethodHead, "/v1/photos/"+id, nil)
+			if auth {
+				r.Header.Set("Authorization", "Bearer "+app.token)
+			}
+			w := httptest.NewRecorder()
+			app.handler().ServeHTTP(w, r)
+			if !auth {
+				if w.Code != 401 || w.Header().Get("X-Photo-Width") != "" {
+					t.Fatal("metadata must require authorization")
+				}
+				continue
+			}
+			if w.Code != 200 || w.Body.Len() != 0 || w.Header().Get("X-Photo-Width") != tc.width || w.Header().Get("X-Photo-Height") != tc.height {
+				t.Fatalf("bad HEAD: %d %v", w.Code, w.Header())
+			}
+		}
+	}
+}

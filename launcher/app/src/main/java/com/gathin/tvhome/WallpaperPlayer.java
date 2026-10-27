@@ -86,7 +86,7 @@ final class WallpaperPlayer {
         longitude = moods.isEmpty() ? "" : context.getString(R.string.longitude);
         // Playback state belongs to one collection. Changing the collection starts from its first
         // picture instead of resuming a filename that belonged to the previous one.
-        String collection = (pairedNas ? "nas-pairs-v1:" : "") + collectionKey(files);
+        String collection = (pairedNas ? "nas-adaptive-v2:" : "") + collectionKey(files);
         if (!collection.equals(preferences.getString("collection", ""))) {
             preferences.edit().putString("collection", collection)
                     .remove("image").remove("changed").apply();
@@ -287,15 +287,25 @@ final class WallpaperPlayer {
         if (old != null && old != bitmap) image.postDelayed(old::recycle, 500);
     }
 
-    /** Two cached 16:9 NAS frames, each filling one half of the screen. The NAS's
-     * centred portrait foreground remains complete; only the soft side padding is removed.
-     * Rare landscape photos use the same centre crop. No extra network work is needed. */
-    private Bitmap decodePair(File first) {
+    private File portraitPartner(File first) {
+        if (!pairedNas) return null;
+        int[] d = NasPhotoCache.dimensions(first);
+        if (!NasPhotoLayout.portrait(d[0],d[1])) return null;
+        int start=files.indexOf(first);
+        for(int offset=1;offset<files.size();offset++) {
+            File candidate=files.get((start+offset)%files.size());
+            d=NasPhotoCache.dimensions(candidate);
+            if(NasPhotoLayout.portrait(d[0],d[1])) return candidate;
+        }
+        return null;
+    }
+
+    /** Pair only non-landscape originals. Unknown dimensions safely use one full frame. */
+    private Bitmap decodePair(File first, File second) {
         Bitmap result = null;
         try {
             int index = files.indexOf(first);
             if (index < 0 || files.size() < 2) return null;
-            File second = files.get((index + 1) % files.size());
             result = Bitmap.createBitmap(width, height, bitmapConfig);
             Canvas canvas = new Canvas(result);
             canvas.drawColor(backgroundColor);
@@ -323,6 +333,13 @@ final class WallpaperPlayer {
                     int sh = Math.min(source.getHeight(), Math.round(target.height()/factor));
                     int x = (source.getWidth()-sw)/2, y = (source.getHeight()-sh)/2;
                     canvas.drawBitmap(source, new Rect(x,y,x+sw,y+sh), target, paint);
+                    // Refit the complete sharp foreground over the existing softened backdrop.
+                    int[] d=NasPhotoCache.dimensions(pair[i]);
+                    int[] foreground=NasPhotoLayout.foreground(d[0],d[1],source.getWidth(),source.getHeight());
+                    float fit=Math.min(target.width()/foreground[2],target.height()/foreground[3]);
+                    float fw=foreground[2]*fit,fh=foreground[3]*fit;
+                    RectF photoTarget=new RectF(target.centerX()-fw/2,target.centerY()-fh/2,target.centerX()+fw/2,target.centerY()+fh/2);
+                    canvas.drawBitmap(source,new Rect(foreground[0],foreground[1],foreground[0]+foreground[2],foreground[1]+foreground[3]),photoTarget,paint);
                 } finally {
                     if (source != null) source.recycle();
                 }
@@ -339,7 +356,8 @@ final class WallpaperPlayer {
     }
 
     private Bitmap decode(File file) {
-        if (pairedNas && files.size() >= 2) return decodePair(file);
+        File partner=portraitPartner(file);
+        if (partner != null) return decodePair(file,partner);
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = true;

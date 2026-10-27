@@ -96,8 +96,8 @@ func (s *Server) batch(w http.ResponseWriter, r *http.Request) {
 var idPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 func (s *Server) image(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "GET required", 405)
+	if r.Method != "GET" && r.Method != "HEAD" {
+		http.Error(w, "GET or HEAD required", 405)
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/v1/photos/")
@@ -109,6 +109,17 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 	if e != nil {
 		http.NotFound(w, r)
 		return
+	}
+	width, height := p.Meta.Width, p.Meta.Height
+	if p.Meta.Orientation >= 5 && p.Meta.Orientation <= 8 {
+		width, height = height, width
+	}
+	w.Header().Set("X-Photo-Width", fmt.Sprint(width))
+	w.Header().Set("X-Photo-Height", fmt.Sprint(height))
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	if r.Method == "HEAD" {
+		w.WriteHeader(http.StatusOK)
+		return // History already has dimensions; no JPEG read or image conversion.
 	}
 	select {
 	case s.imageGate <- struct{}{}:
