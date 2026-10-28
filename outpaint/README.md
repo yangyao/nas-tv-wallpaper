@@ -86,3 +86,43 @@ Go queue tests cover auth/feature gates, deduplication, exclusive leases, invali
 ## Observed pilot
 
 On an M4 / 16 GiB Mac, six 896×504 / 24-step samples took roughly 69–76 seconds each including load/save (GPU generation plus postprocessing; cached-generation recovery was also verified without resubmitting GPU work). First installation/model download is separate and can be slow. Go race tests, fixed-node availability, MPS execution and composition/face-helper integration tests passed. Face-protected edge blending improved visible seams; generated scenery and geometry remain imperfect. No personal samples or credentials are published. Keep automatic sampling and TV serving off until the results meet your needs.
+
+## Dedicated FLUX Fill quality benchmark
+
+This is a separate manual experiment, **not** a change to the scheduled SD 1.5 worker or NAS delivery. Keep automatic sampling and serving disabled until the actual results pass review. Inputs and generated media must stay outside the checkout.
+
+Install the pinned ComfyUI-GGUF extension from https://github.com/city96/ComfyUI-GGUF (tested source revision `6ea2651e7df66d7585f6ffee804b20e92fb38b8a`) into ComfyUI's `custom_nodes`. It requires `gguf` and `protobuf` in ComfyUI's Python environment. Model licenses remain applicable, including FLUX.1 dev's noncommercial terms; quantization does not change them.
+
+Download approximately 10.8 GB of model assets, with per-range resume and mandatory whole-file SHA-256 verification:
+
+```sh
+python download_assets.py --root /path/to/ComfyUI/models
+```
+
+`--mirror` can select an HTTPS Hugging Face mirror. An explicit asset URL in the manifest takes precedence. Downloading public model weights does not send inference inputs to that provider.
+
+Start ComfyUI bound to `127.0.0.1`. On Apple Silicon, keep its normal MPS memory limits; do not disable high-watermark protection. A 16 GB machine requires actual memory and latency testing, even with quantized weights.
+
+```sh
+python benchmark_flux.py /private/path/original.jpg \
+  --output /private/path/flux-comparison \
+  --prompt 'A natural photograph of a family in a residential courtyard, daylight, coherent surroundings.'
+```
+
+The benchmark follows [ComfyUI's official Fill outpaint template](https://docs.comfy.org/tutorials/flux/flux-1-fill-dev): FLUX guidance 30, differential diffusion strength 1, inpaint conditioning with `noise_mask=false`, 24-pixel feathering, Euler/normal, CFG 1, 20 steps. Only the model loaders use GGUF. Input is resized to 576 pixels high and padded horizontally to 1024 pixels. The generated PNG is saved unchanged: no original-region paste, face correction, or seam blending. Inspect subject identity as well as backgrounds. This raw output is a quality test, not a guarantee of unchanged source pixels.
+
+The private output contains input, exact API workflow, prompt ID, execution history, timing and raw image. If interrupted, retrieve the saved prompt's history rather than resubmitting and spending another generation. Model asset hashes are recorded in `flux-assets.json`. The selected seed enables repeatable comparisons within the same software/hardware stack; cross-device bitwise identity is not promised.
+
+For constrained RAM, `cache_flux_prompt.py --comfy-root /path/to/ComfyUI --prompt '...'` uses built-in `SaveConditioning` to store text encoder output under `models/embeddings`. Restart the idle ComfyUI process to release text encoder weights, then pass `--conditioning <reported-filename> --comfy-root /path/to/ComfyUI` to the benchmark with the **same** prompt. The benchmark checks the cached prompt and records its hash and encoding workflow. This preserves conditioning values while separating encoder and diffusion model residency. No third-party conditioning serializer is needed.
+
+Reference benchmark environment: ComfyUI `f49e3b466f637cf0c1120614a7dbcf02ec2805e3`, Python 3.12.13, PyTorch 2.12.0, torchvision 0.27.0, macOS 26.5.1, Apple M4 with 16 GiB unified memory. Optional GGUF dependencies are pinned in `requirements-flux.txt`. CPU text encoding and CPU VAE keep MPS memory available for diffusion. The core text-conditioning save/load nodes must be present; older ComfyUI versions may not include them.
+
+Generate an offline comparison after a successful run:
+
+```sh
+python compare_flux.py --source /private/original.jpg \
+  --previous /private/previous-result.jpg --current /private/flux/raw.png \
+  --output /private/compare.html
+```
+
+The source is shown with plain padding. FLUX output is shown raw; the previous SD 1.5 pipeline may include original-region compositing. Differences therefore compare the actual pipelines, not an isolated checkpoint substitution. Neither HTML nor images belong in the public repository.

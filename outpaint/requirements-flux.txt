@@ -1,0 +1,4 @@
+# Optional extension dependencies; install into the existing ComfyUI environment.
+# ComfyUI and PyTorch themselves follow the pinned deployment documented in README.
+gguf==0.19.0
+protobuf==7.36.2

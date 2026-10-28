@@ -1,0 +1,31 @@
+[
+  {
+    "path": "text_encoders/clip_l.safetensors",
+    "repo": "comfyanonymous/flux_text_encoders",
+    "file": "clip_l.safetensors",
+    "size": 246144152,
+    "sha256": "660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd"
+  },
+  {
+    "path": "vae/ae.safetensors",
+    "repo": "second-state/FLUX.1-Fill-dev-GGUF",
+    "file": "ae.safetensors",
+    "size": 335304388,
+    "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+  },
+  {
+    "path": "text_encoders/t5-v1_1-xxl-encoder-Q5_K_M.gguf",
+    "repo": "city96/t5-v1_1-xxl-encoder-gguf",
+    "file": "t5-v1_1-xxl-encoder-Q5_K_M.gguf",
+    "size": 3386856640,
+    "sha256": "b51cbb10b1a7aac6dd1c3b62f0ed908bfd06e0b42d2f3577d43e061361f51dae",
+    "url": "https://modelscope.cn/api/v1/models/city96/t5-v1_1-xxl-encoder-gguf/repo?Revision=master&FilePath=t5-v1_1-xxl-encoder-Q5_K_M.gguf"
+  },
+  {
+    "path": "diffusion_models/flux1-fill-dev-Q4_K_S.gguf",
+    "repo": "YarvixPA/FLUX.1-Fill-dev-GGUF",
+    "file": "flux1-fill-dev-Q4_K_S.gguf",
+    "size": 6809920800,
+    "sha256": "3782c22eda0622d50eb8683d2aa664e8534a8c1e29ce9e91df491cc400944dc8"
+  }
+]
