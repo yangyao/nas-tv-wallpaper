@@ -243,3 +243,21 @@ func TestCaptureLeapDayExpiry(t *testing.T) {
 		t.Fatal("leap-day capture retained past ten-year window")
 	}
 }
+
+func TestSoftExpiryWithoutDifferentReadyContentKeepsSameVersion(t *testing.T) {
+	q, _ := newPaintQueue(t.TempDir(), false, true)
+	p, _ := newPublishedStore(t.TempDir(), "light")
+	now := time.Now()
+	addPublishedTestJob(t, q, 1, "light", "approved")
+	if err := p.refresh(q, now); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := p.latest()
+	if err := p.refresh(q, now.Add(2*publishedTTL)); err != nil {
+		t.Fatal(err)
+	}
+	same, _ := p.latest()
+	if same.ID != first.ID || len(p.index.Batches) != 1 {
+		t.Fatal("no new content must keep old batch, not invent duplicate versions")
+	}
+}

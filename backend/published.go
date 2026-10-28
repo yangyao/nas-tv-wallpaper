@@ -250,15 +250,32 @@ func (p *PublishedStore) refresh(q *PaintQueue, now time.Time) error {
 	if len(photos) == 0 {
 		return nil
 	}
-	seed, _ := json.Marshal(photos)
-	sum := sha256.Sum256(append(seed, []byte(fmt.Sprint(now.UnixNano()))...))
-	batch := PublishedBatch{ID: hex.EncodeToString(sum[:16]), Published: now.Unix(), Expires: now.Add(publishedTTL).Unix(), Refresh: 900, Photos: photos}
+	validUntil := int64(0)
 	for _, a := range photos {
 		until := captureValidUntil(a.Taken, p.maxAgeYears)
-		if batch.ValidUntil == 0 || until < batch.ValidUntil {
-			batch.ValidUntil = until
+		if validUntil == 0 || until < validUntil {
+			validUntil = until
 		}
 	}
+	seed, _ := json.Marshal(photos)
+	previousSeed, _ := json.Marshal(latest.Photos)
+	if has && latest.ValidUntil == validUntil && bytes.Equal(seed, previousSeed) {
+		// No genuinely different completed batch: keep its identity even beyond soft TTL.
+		// Cache new duplicate-source fingerprints without inventing a new publication.
+		if next.Signature != old.Signature {
+			p.mu.Lock()
+			err := atomicPublishedJSON(filepath.Join(p.dir, "index.json"), next)
+			if err == nil {
+				p.index = next
+			}
+			p.mu.Unlock()
+			return err
+		}
+		return nil
+	}
+	sum := sha256.Sum256(append(seed, []byte(fmt.Sprint(now.UnixNano()))...))
+	batch := PublishedBatch{ID: hex.EncodeToString(sum[:16]), Published: now.Unix(), Expires: now.Add(publishedTTL).Unix(), Refresh: 900, Photos: photos}
+	batch.ValidUntil = validUntil
 	next.Batches = append(next.Batches, batch)
 	if len(next.Batches) > publishedLimit {
 		next.Batches = next.Batches[len(next.Batches)-publishedLimit:]
