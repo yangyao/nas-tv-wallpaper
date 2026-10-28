@@ -58,7 +58,9 @@ sudo cp /share/Public/nas-tv-wallpaper.conf /etc/config/nas-tv-wallpaper.conf
 sudo chmod 600 /etc/config/nas-tv-wallpaper.conf
 ```
 
-With that configuration present, upgrade the uploaded package manually:
+Also check that the existing runtime `server.env` explicitly contains `NAS_PHOTO_ROOT`, `NAS_PHOTO_LISTEN`, and the existing `NAS_PHOTO_TOKEN`. Some old personal builds kept only the token in that file and compiled the root/listen settings into their startup script. Migrate the existing root and LAN listen address into `server.env`, preserving the token and all feature flags; keep mode 600. Do not assume that a running legacy service proves this file already has every required setting.
+
+With both configuration files complete, upgrade the uploaded package manually:
 
 ```sh
 sudo /bin/sh /share/Public/NasTvWallpaper_1.3.0_arm_64.qpkg

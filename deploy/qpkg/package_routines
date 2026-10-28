@@ -7,4 +7,9 @@ pkg_check_requirement(){
  id "$service_user" >/dev/null 2>&1 || err_log "Configured service user does not exist"
  [ "$(id -u "$service_user")" != 0 ] || err_log "Service user must not be root"
  [ -r "$runtime/server.env" ] || err_log "RuntimeDir/server.env is required"
+ # Legacy personal packages had these values compiled into their service script.
+ # Check before stopping/upgrading an installed service; never source user settings as root.
+ grep -q '^NAS_PHOTO_ROOT=' "$runtime/server.env" || err_log "Set NAS_PHOTO_ROOT in RuntimeDir/server.env before upgrading"
+ grep -q '^NAS_PHOTO_LISTEN=' "$runtime/server.env" || err_log "Set NAS_PHOTO_LISTEN in RuntimeDir/server.env before upgrading"
+ grep -q '^NAS_PHOTO_TOKEN=' "$runtime/server.env" || err_log "Set NAS_PHOTO_TOKEN in RuntimeDir/server.env before upgrading"
 }
