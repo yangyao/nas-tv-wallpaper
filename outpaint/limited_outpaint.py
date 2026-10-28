@@ -5,7 +5,9 @@ import argparse
 from PIL import Image, ImageFilter, ImageOps
 
 
-def compose(source, generated, prepared_width, margin=32, feather=64):
+def compose(source, generated, prepared_width, margin=32, feather=64, softness=1.0):
+    if not 0.25 <= softness <= 2:
+        raise ValueError("softness must be between 0.25 and 2")
     if generated.height != 576 or prepared_width <= 0 or prepared_width % 8:
         raise ValueError("invalid prepared dimensions")
     padding = (generated.width - prepared_width) // 2
@@ -20,7 +22,7 @@ def compose(source, generated, prepared_width, margin=32, feather=64):
     crop = generated.convert("RGB").crop(
         (padding - margin, 0, padding + prepared_width + margin, 576)
     ).resize((core_width + 2 * side, 1080), Image.Resampling.LANCZOS)
-    softened = crop.filter(ImageFilter.GaussianBlur(10))
+    softened = crop.filter(ImageFilter.GaussianBlur(10 * softness))
     result = Image.new("RGB", (1920, 1080))
     # Collapse each outer strip into a very coarse vertical colour field. No
     # mirroring or horizontal stretching of faces into the remaining canvas.
@@ -29,9 +31,9 @@ def compose(source, generated, prepared_width, margin=32, feather=64):
         ((crop.width - min(24, side), 0, crop.width, 1080),
          (left + core_width, 0, 1920, 1080)),
     ]:
-        field = softened.crop(box).resize((1, 12), Image.Resampling.BOX)
+        field = softened.crop(box).resize((1, round(12 / softness)), Image.Resampling.BOX)
         field = field.resize((dest[2] - dest[0], 1080), Image.Resampling.BICUBIC)
-        result.paste(field.filter(ImageFilter.GaussianBlur(48)), dest[:2])
+        result.paste(field.filter(ImageFilter.GaussianBlur(48 * softness)), dest[:2])
     weights = []
     for x in range(crop.width):
         t = max(0, min(1, min(x, crop.width - 1 - x) / side))
@@ -64,10 +66,11 @@ def main():
     p.add_argument("--prepared-width", type=int, required=True)
     p.add_argument("--margin", type=int, default=32)
     p.add_argument("--feather", type=int, default=64)
+    p.add_argument("--softness", type=float, default=1.0)
     p.add_argument("--output", required=True)
     a = p.parse_args()
     with Image.open(a.source) as source, Image.open(a.generated) as generated:
-        compose(source, generated, a.prepared_width, a.margin, a.feather).save(a.output, quality=95)
+        compose(source, generated, a.prepared_width, a.margin, a.feather, a.softness).save(a.output, quality=95)
 
 
 if __name__ == "__main__":
