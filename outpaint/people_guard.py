@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from PIL import Image
 
-VERSION = "margin-people-v1"
+VERSION = "margin-large-face-v2"
 
 
 class NewPeopleDetected(Exception):
@@ -26,12 +26,12 @@ def outside_subject(item, left, right):
         return False
     overlap = max(0, min(x + w, right) - max(x, left))
     outside = 1 - min(1, overlap / w)
-    # Reject even an existing edge-cropped face being substantially invented.
-    # A person box can span several original subjects, so require its centre
-    # outside too; face detections use the stricter margin-overlap rule.
-    return outside >= 0.20 if kind == "face" else (
-        outside >= 0.35 and not left <= x + w / 2 <= right
-    )
+    # Full-frame normalised size, including detections from side crops. Bodies,
+    # backs and small distant faces are allowed. At 1080p the face-height cutoff
+    # is about 86 pixels; this is a visual-size heuristic, not identity recognition.
+    return (kind == "face" and outside >= 0.20
+            and h >= 0.08 and w >= 0.025)
+
 
 
 def inspect_image(path, helper, source_left, source_right):

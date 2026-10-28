@@ -12,9 +12,15 @@ class PeopleGuardTests(unittest.TestCase):
             self.assertTrue(outside_subject(dict(kind="face", confidence=0.8,
                                                 box=[x, 0.3, 0.1, 0.2]), 0.29, 0.71))
 
-    def test_margin_body_without_visible_face_is_rejected(self):
-        self.assertTrue(outside_subject(dict(kind="person", confidence=0.7,
+    def test_margin_body_without_visible_face_is_allowed(self):
+        self.assertFalse(outside_subject(dict(kind="person", confidence=0.7,
                                             box=[0.8, 0.2, 0.15, 0.7]), 0.29, 0.71))
+
+    def test_distant_face_is_allowed_but_large_margin_face_is_blocked(self):
+        self.assertFalse(outside_subject(dict(kind="face", confidence=0.9,
+                                             box=[0.1, 0.3, 0.02, 0.04]), 0.29, 0.71))
+        self.assertTrue(outside_subject(dict(kind="face", confidence=0.9,
+                                            box=[0.1, 0.3, 0.08, 0.14]), 0.29, 0.71))
 
     def test_malformed_detection_fails_closed(self):
         with self.assertRaises(ValueError):
