@@ -261,3 +261,29 @@ func TestSoftExpiryWithoutDifferentReadyContentKeepsSameVersion(t *testing.T) {
 		t.Fatal("no new content must keep old batch, not invent duplicate versions")
 	}
 }
+
+func TestPublishedNewResultsWaitForTwoHourWindow(t *testing.T) {
+	q, _ := newPaintQueue(t.TempDir(), false, true)
+	p, _ := newPublishedStore(t.TempDir(), "light")
+	now := time.Now()
+	addPublishedTestJob(t, q, 1, "light", "approved")
+	if err := p.refresh(q, now); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := p.latest()
+	addPublishedTestJob(t, q, 2, "light", "approved")
+	if err := p.refresh(q, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	waiting, _ := p.latest()
+	if waiting.ID != first.ID {
+		t.Fatal("new result replaced batch before refresh window")
+	}
+	if err := p.refresh(q, now.Add(publishedTTL)); err != nil {
+		t.Fatal(err)
+	}
+	next, _ := p.latest()
+	if next.ID == first.ID || len(next.Photos) != 2 {
+		t.Fatal("completed results not published at refresh window")
+	}
+}

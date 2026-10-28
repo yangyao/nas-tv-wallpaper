@@ -7,6 +7,8 @@ p = argparse.ArgumentParser()
 p.add_argument("--root", type=pathlib.Path, required=True)
 p.add_argument("--config", type=pathlib.Path, required=True)
 p.add_argument("--worker", action="store_true")
+p.add_argument("--interval", type=int, default=1800, help="Worker launch interval in seconds (minimum 60)")
+p.add_argument("--count", type=int, default=1, help="Sequential jobs per launch (1–10)")
 a = p.parse_args()
 root = a.root.expanduser().resolve()
 config = a.config.expanduser().resolve()
@@ -48,10 +50,10 @@ if a.worker:
             "--config",
             str(config),
             "--count",
-            "1",
+            str(max(1, min(a.count, 10))),
         ],
         "WorkingDirectory": str(root),
-        "StartInterval": 1800,
+        "StartInterval": max(60, a.interval),
         "RunAtLoad": False,
     }
 for label, body in services.items():

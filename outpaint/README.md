@@ -170,3 +170,9 @@ python3 deploy/outpaint-control.py --config /private/control.json on
 Production now uses the [published-batch protocol](../docs/PUBLISHED-WALLPAPERS.md). NAS maintains the task inventory and up to ten immutable completed batch versions. TV downloads only complete publications and retains its previous valid batch on producer/network failures. No raw-photo fill is used in this mode. The former rollback description above applies only to legacy mode with published batches disabled; the normal `off` action now pauses delivery and keeps completed client cache.
 
 Capture-date filtering defaults to the rolling last ten years, with unknown/future dates excluded. NAS publication filters existing results as well as new candidates. Control `on` synchronizes the exact derived Mac recipe key to the NAS publisher and enables this strict mode. No additional generation was needed for the initial three-image publication.
+
+### Faster continuous production (optional)
+
+To populate the retained slideshow batches sooner, set `start_hour: 0`, `end_hour: 24` and `max_per_day: 96` in the private worker configuration. Install with `install_agents.py --root <runtime> --config <private-config> --worker --interval 300 --count 10`. This runs up to ten jobs sequentially per invocation, with a filesystem lock preventing overlap; the daily limit includes failures. Generation remains single-task, not parallel GPU work. The Mac must be awake, and macOS Local Network permission must allow the background worker to reach NAS. Verify a task actually enters processing after installation; an SSH health check alone does not verify LaunchAgent permissions.
+
+NAS publication is independent: it publishes changed completed batches every two hours and retains the latest ten. These are rolling snapshots and may share photos, not ten disjoint sets of twenty. TV checks for changes every fifteen minutes while Home is visible; a producer outage retains the last valid cache.

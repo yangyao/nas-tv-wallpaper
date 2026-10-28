@@ -20,7 +20,7 @@ import (
 
 const publishedLimit = 10
 const publishedSize = 20
-const publishedTTL = 6 * time.Hour
+const publishedTTL = 2 * time.Hour
 
 type PublishedPhoto struct {
 	ID     string `json:"id"`
@@ -215,7 +215,7 @@ func (p *PublishedStore) refresh(q *PaintQueue, now time.Time) error {
 	}
 	next.Signature = fmt.Sprint(p.maxAgeYears) + ":" + p.workflow + ":" + hex.EncodeToString(signature.Sum(nil))
 	latest, has := p.latest()
-	if has && next.Signature == old.Signature && now.Unix() < latest.Expires {
+	if has && now.Unix() < latest.Published+int64(publishedTTL.Seconds()) {
 		return nil
 	}
 	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].LastServed < jobs[j].LastServed })
