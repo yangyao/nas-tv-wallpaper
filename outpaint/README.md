@@ -164,3 +164,9 @@ python3 deploy/outpaint-control.py --config /private/control.json on
 ```
 
 `off` disables new Mac worker invocations and NAS automatic sampling/AI serving. An in-flight generation can finish, but its result is hidden while serving is off. Already downloaded TV images remain until the next successful batch refresh; use the existing `launcher-control.py refresh` when the TV is reachable to request a refresh on Home. Offline TV behaviour and local-wallpaper fallback are preserved. `on` restores NAS sampling/serving, then enables the scheduled Mac worker; it does not start an immediate heavy job. For model rollback, restore the previous private worker configuration and leave serving off until its results have been reviewed.
+
+## Versioned publication supersedes mixed original/AI delivery
+
+Production now uses the [published-batch protocol](../docs/PUBLISHED-WALLPAPERS.md). NAS maintains the task inventory and up to ten immutable completed batch versions. TV downloads only complete publications and retains its previous valid batch on producer/network failures. No raw-photo fill is used in this mode. The former rollback description above applies only to legacy mode with published batches disabled; the normal `off` action now pauses delivery and keeps completed client cache.
+
+Capture-date filtering defaults to the rolling last ten years, with unknown/future dates excluded. NAS publication filters existing results as well as new candidates. Control `on` synchronizes the exact derived Mac recipe key to the NAS publisher and enables this strict mode. No additional generation was needed for the initial three-image publication.

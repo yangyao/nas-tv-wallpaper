@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 type PhotoMeta struct {
@@ -147,4 +148,44 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// Capture dates come only from EXIF DateTimeOriginal, never file modification time.
+func captureDate(taken string) (time.Time, bool) {
+	if len(taken) < 10 {
+		return time.Time{}, false
+	}
+	d, err := time.ParseInLocation("2006:01:02", taken[:10], time.Local)
+	if err != nil {
+		return time.Time{}, false
+	}
+	if len(taken) > 10 {
+		if _, err = time.ParseInLocation("2006:01:02 15:04:05", taken, time.Local); err != nil {
+			return time.Time{}, false
+		}
+	}
+	return d, true
+}
+func recentTaken(taken string, now time.Time, years int) bool {
+	if years <= 0 {
+		return false
+	}
+	d, ok := captureDate(taken)
+	if !ok {
+		return false
+	}
+	y, m, day := now.In(time.Local).Date()
+	today := time.Date(y, m, day, 0, 0, 0, 0, time.Local)
+	return !d.Before(today.AddDate(-years, 0, 0)) && !d.After(today)
+}
+func captureValidUntil(taken string, years int) int64 {
+	d, ok := captureDate(taken)
+	if !ok {
+		return 0
+	}
+	anniversary := d.AddDate(years, 0, 0)
+	if anniversary.Month() != d.Month() {
+		return anniversary.Unix()
+	}
+	return anniversary.AddDate(0, 0, 1).Unix()
 }

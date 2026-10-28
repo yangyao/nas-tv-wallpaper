@@ -34,12 +34,13 @@ type PaintJob struct {
 	LastServed int64   `json:"last_served,omitempty"`
 }
 type PaintQueue struct {
-	mu       sync.Mutex
-	dir      string
-	Jobs     []PaintJob       `json:"jobs"`
-	Sources  map[string]Photo `json:"sources,omitempty"`
-	Autofill bool             `json:"-"`
-	Serve    bool             `json:"-"`
+	mu          sync.Mutex
+	maxAgeYears int
+	dir         string
+	Jobs        []PaintJob       `json:"jobs"`
+	Sources     map[string]Photo `json:"sources,omitempty"`
+	Autofill    bool             `json:"-"`
+	Serve       bool             `json:"-"`
 }
 
 func newPaintQueue(dir string, autofill, serve bool) (*PaintQueue, error) {
@@ -84,6 +85,9 @@ func orientedDimensions(p Photo) (int, int) {
 func (q *PaintQueue) enqueue(p Photo, workflow, prompt string) (PaintJob, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.maxAgeYears > 0 && !recentTaken(p.Meta.Taken, time.Now(), q.maxAgeYears) {
+		return PaintJob{}, errors.New("photo capture date outside allowed range")
+	}
 	w, h := orientedDimensions(p)
 	if w > h {
 		return PaintJob{}, errors.New("only portrait or square sources are queued")
@@ -200,8 +204,15 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 		}
 		q.mu.Lock()
 		now := time.Now().Unix()
+		ageChanged := false
 		for i := range q.Jobs {
 			j := &q.Jobs[i]
+			if q.maxAgeYears > 0 && (j.Status == "pending" || j.Status == "failed") && !recentTaken(q.Sources[j.PhotoID].Meta.Taken, time.Now(), q.maxAgeYears) {
+				j.Status = "rejected"
+				j.Updated = now
+				ageChanged = true
+				continue
+			}
 			if j.Status == "processing" && j.Lease < now && j.Attempts >= 3 {
 				j.Status = "failed"
 				j.Updated = now
@@ -220,6 +231,13 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 				job := *j
 				q.mu.Unlock()
 				paintJSON(w, job)
+				return
+			}
+		}
+		if ageChanged {
+			if err := q.save(); err != nil {
+				q.mu.Unlock()
+				http.Error(w, "cannot persist capture-date filtering", 500)
 				return
 			}
 		}

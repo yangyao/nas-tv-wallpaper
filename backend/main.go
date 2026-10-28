@@ -13,12 +13,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
 
 type Server struct {
+	published            *PublishedStore
 	outpaint             *PaintQueue
 	sampler              *Sampler
 	token, cache         string
@@ -32,6 +34,8 @@ func (s *Server) handler() http.Handler {
 		fmt.Fprint(w, `{"ok":true}`)
 	})
 	mux.HandleFunc("/v1/batch", s.batch)
+	mux.HandleFunc("/v2/wallpapers/latest", s.publishedLatest)
+	mux.HandleFunc("/v2/wallpapers/assets/", s.publishedAsset)
 	mux.HandleFunc("/v1/photos/", s.image)
 	mux.HandleFunc("/v1/outpaint/", s.paint)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,6 +53,10 @@ func (s *Server) handler() http.Handler {
 func (s *Server) batch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "POST required", 405)
+		return
+	}
+	if s.published != nil {
+		s.publishedLegacyBatch(w, r)
 		return
 	}
 	select {
@@ -118,6 +126,18 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/v1/photos/")
 	if !idPattern.MatchString(id) {
 		http.NotFound(w, r)
+		return
+	}
+	if s.published != nil {
+		if !s.publishingEnabled() {
+			http.Error(w, "published delivery paused; keep local cache", 503)
+			return
+		}
+		if a, ok := s.published.asset(id); ok {
+			s.servePublishedAsset(w, r, a)
+		} else {
+			http.NotFound(w, r)
+		}
 		return
 	}
 	p, e := s.selectedPhoto(id)
@@ -198,21 +218,43 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
+	if raw := os.Getenv("NAS_PHOTO_MAX_AGE_YEARS"); raw != "" {
+		years, err := strconv.Atoi(raw)
+		if err != nil || years < 1 || years > 100 {
+			log.Fatal("NAS_PHOTO_MAX_AGE_YEARS must be 1..100")
+		}
+		sampler.maxAgeYears = years
+	}
 	app := &Server{sampler: sampler, token: token, cache: filepath.Join(*data, "images"), batchGate: make(chan struct{}, 1), imageGate: make(chan struct{}, 1)}
 	if os.Getenv("NAS_PHOTO_OUTPAINT") == "1" {
 		app.outpaint, e = newPaintQueue(filepath.Join(*data, "outpaint"), os.Getenv("NAS_PHOTO_OUTPAINT_AUTOFILL") == "1", os.Getenv("NAS_PHOTO_OUTPAINT_SERVE") == "1")
 		if e != nil {
 			log.Fatal(e)
 		}
+		app.outpaint.maxAgeYears = sampler.maxAgeYears
 		if e = app.outpaint.reconcile(sampler); e != nil {
 			log.Fatal(e)
 		}
+	}
+	runContext, stopMaintenance := context.WithCancel(context.Background())
+	defer stopMaintenance()
+	if os.Getenv("NAS_PHOTO_BATCH_PUBLISH") == "1" {
+		if app.outpaint == nil {
+			log.Fatal("published batches require outpaint queue")
+		}
+		app.published, e = newPublishedStore(filepath.Join(*data, "published"), os.Getenv("NAS_PHOTO_PUBLISH_WORKFLOW"))
+		if e != nil {
+			log.Fatal(e)
+		}
+		app.published.maxAgeYears = sampler.maxAgeYears
+		go app.maintainPublished(runContext)
 	}
 	server := &http.Server{Addr: *listen, Handler: app.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 90 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-stop
+		stopMaintenance()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		server.Shutdown(ctx)

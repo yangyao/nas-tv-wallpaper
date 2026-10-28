@@ -16,30 +16,38 @@ VERSION = "flux-fill-light-v1"
 DEFAULT_PROMPT = "Extend the photograph naturally, maintaining the existing surroundings, lighting, perspective and colors. A coherent, unobtrusive continuation of the environment."
 
 
+def recipe_settings(config):
+    return {
+        "version": VERSION,
+        "model": config.get("flux_model", "flux1-fill-dev-Q4_K_S.gguf"),
+        "prompt": config.get("flux_prompt", DEFAULT_PROMPT),
+        "radius": config.get("soften_radius", 10),
+        "feather": config.get("soften_feather", 96),
+        "ramp": config.get("soften_ramp", 260),
+        "steps": 20,
+    }
+
+
+def recipe_key(config):
+    digest = hashlib.sha256(
+        json.dumps(recipe_settings(config), sort_keys=True).encode()
+    ).hexdigest()[:10]
+    return VERSION + "-" + digest
+
+
 class FluxWorker(Worker):
     output_node = "9"
 
     def __init__(self, config):
         super().__init__(config)
-        self.recipe = {
-            "version": VERSION,
-            "model": config.get("flux_model", "flux1-fill-dev-Q4_K_S.gguf"),
-            "prompt": config.get("flux_prompt", DEFAULT_PROMPT),
-            "radius": config.get("soften_radius", 10),
-            "feather": config.get("soften_feather", 96),
-            "ramp": config.get("soften_ramp", 260),
-            "steps": 20,
-        }
+        self.recipe = recipe_settings(config)
         if not (
             0 <= self.recipe["radius"] <= 100
             and 1 <= self.recipe["feather"] <= 160
             and 1 <= self.recipe["ramp"] <= 600
         ):
             raise ValueError("invalid softening settings")
-        digest = hashlib.sha256(
-            json.dumps(self.recipe, sort_keys=True).encode()
-        ).hexdigest()[:10]
-        self.workflow = VERSION + "-" + digest
+        self.workflow = recipe_key(config)
         self.cache = (
             pathlib.Path(config["comfy_root"]).expanduser()
             / "models"

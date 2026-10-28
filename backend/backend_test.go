@@ -197,7 +197,7 @@ func TestPhotoDimensionsHeadWithoutReadingOriginal(t *testing.T) {
 		orientation   int
 		width, height string
 	}{{1, "4000", "3000"}, {6, "3000", "4000"}, {8, "3000", "4000"}} {
-		s.history.Photos[id] = Photo{ID: id, Path: "does-not-exist.jpg", Meta: PhotoMeta{Width: 4000, Height: 3000, Orientation: tc.orientation}}
+		s.history.Photos[id] = Photo{ID: id, Path: "does-not-exist.jpg", Meta: PhotoMeta{Taken: "2025:01:01 12:00:00", Width: 4000, Height: 3000, Orientation: tc.orientation}}
 		app := &Server{sampler: s, token: "test-token-not-for-production", cache: t.TempDir(), imageGate: make(chan struct{}, 1)}
 		for _, auth := range []bool{false, true} {
 			r := httptest.NewRequest(http.MethodHead, "/v1/photos/"+id, nil)

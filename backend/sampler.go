@@ -47,6 +47,7 @@ type Sampler struct {
 	rng             *rand.Rand
 	inspect         func(string) (PhotoMeta, error)
 	maxCandidates   int
+	maxAgeYears     int
 	reads           int
 	budget          time.Duration
 }
@@ -62,7 +63,7 @@ func NewSampler(root, state string) (*Sampler, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Sampler{root: r, stateFile: state, history: History{Photos: map[string]Photo{}, Directories: map[string]int64{}, Rejected: map[string]int64{}}, windows: map[string]*dirWindow{}, rng: rand.New(rand.NewSource(time.Now().UnixNano())), inspect: metadata, maxCandidates: 100, budget: 10 * time.Second}
+	s := &Sampler{root: r, stateFile: state, history: History{Photos: map[string]Photo{}, Directories: map[string]int64{}, Rejected: map[string]int64{}}, windows: map[string]*dirWindow{}, rng: rand.New(rand.NewSource(time.Now().UnixNano())), inspect: metadata, maxCandidates: 100, maxAgeYears: 10, budget: 10 * time.Second}
 	if data, e := os.ReadFile(state); e == nil {
 		if e = json.Unmarshal(data, &s.history); e != nil {
 			return nil, e
@@ -246,7 +247,7 @@ func (s *Sampler) Batch(ctx context.Context, count int, exclude []string) ([]Pho
 		}
 		checked++
 		meta, e := s.inspect(path)
-		if e != nil || !eligible(meta) {
+		if e != nil || !eligible(meta) || !recentTaken(meta.Taken, time.Now(), s.maxAgeYears) {
 			s.history.Rejected[id] = time.Now().Unix()
 			continue
 		}
@@ -270,7 +271,7 @@ func (s *Sampler) Photo(id string) (Photo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.history.Photos[id]
-	if !ok {
+	if !ok || !recentTaken(p.Meta.Taken, time.Now(), s.maxAgeYears) {
 		return Photo{}, os.ErrNotExist
 	}
 	return p, nil

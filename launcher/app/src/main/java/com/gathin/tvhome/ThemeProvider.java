@@ -43,6 +43,11 @@ public class ThemeProvider extends ContentProvider {
             org.json.JSONObject state = NasPhotoCache.json(new java.io.File(root, "state.json"));
             org.json.JSONObject pending = NasPhotoCache.json(new java.io.File(root, "pending.json"));
             out.putBoolean("enabled", NasPhotoSettings.load(getContext()).enabled);
+            out.putInt("protocol", state.optInt("protocol", 0));
+            out.putString("batch_id", state.optString("batch_id", ""));
+            out.putString("pending_batch_id", pending.optString("batch_id", ""));
+            out.putLong("valid_until", state.optLong("valid_until", 0));
+            out.putBoolean("complete", PublishedPhotoProtocol.validUntil(state.optLong("valid_until"), System.currentTimeMillis()/1000) && state.optInt("protocol") == 2 && state.optInt("count") > 0 && NasPhotoCache.batchFiles(getContext(), state.optString("current")).size() == state.optInt("count"));
             out.putInt("cached", NasPhotoCache.batchFiles(getContext(), state.optString("current")).size());
             out.putInt("pending", NasPhotoCache.batchFiles(getContext(), pending.optString("directory")).size());
             out.putLong("bytes", NasPhotoCache.size(root));
