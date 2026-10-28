@@ -10,9 +10,9 @@ import requests
 from PIL import Image, ImageOps
 
 
-def workflow(image, width, model, prompt, seed, steps):
-    left = ((1024 - width) // 16) * 8
-    right = 1024 - width - left
+def workflow(image, width, model, prompt, seed, steps, canvas_width=1024):
+    left = ((canvas_width - width) // 16) * 8
+    right = canvas_width - width - left
     return {
         "34": {
             "class_type": "DualCLIPLoaderGGUF",
@@ -109,6 +109,7 @@ def main():
     ap.add_argument("--seed", type=int, default=164211176398261)
     ap.add_argument("--steps", type=int, default=20)
     ap.add_argument("--guidance", type=float, default=30.0)
+    ap.add_argument("--margin", type=int, help="Limit generated pixels on each side (8–256, multiple of 8)")
     ap.add_argument(
         "--conditioning", help="Cached conditioning filename from cache_flux_prompt.py"
     )
@@ -121,6 +122,8 @@ def main():
     args = ap.parse_args()
     if not 1 <= args.guidance <= 100:
         ap.error("guidance must be between 1 and 100")
+    if args.margin is not None and (args.margin < 8 or args.margin > 256 or args.margin % 8):
+        ap.error("margin must be a multiple of 8 between 8 and 256")
     cache_metadata = None
     if args.conditioning:
         if (
@@ -148,6 +151,9 @@ def main():
     width = max(8, round(image.width * 576 / image.height / 8) * 8)
     if width >= 1024:
         raise ValueError("benchmark expects a portrait source")
+    canvas_width = width + 2 * args.margin if args.margin is not None else 1024
+    if canvas_width > 1024:
+        ap.error("limited canvas exceeds 1024 pixels")
     image = image.resize((width, 576), Image.Resampling.LANCZOS)
     source = args.output / "input.png"
     image.save(source)
@@ -167,7 +173,7 @@ def main():
     name = (
         upload.get("subfolder", "") + "/" if upload.get("subfolder") else ""
     ) + upload["name"]
-    graph = workflow(name, width, args.model, args.prompt, args.seed, args.steps)
+    graph = workflow(name, width, args.model, args.prompt, args.seed, args.steps, canvas_width)
     graph["26"]["inputs"]["guidance"] = args.guidance
     if args.conditioning:
         del graph["34"]
@@ -205,7 +211,7 @@ def main():
                         {
                             "seconds": elapsed,
                             "execution_seconds": execution_seconds(history),
-                            "size": [1024, 576],
+                            "size": [canvas_width, 576],
                             "model": args.model,
                             "steps": args.steps,
                             "seed": args.seed,
