@@ -51,7 +51,14 @@ python3 deploy/outpaint-control.py --config /private/control.json off
 python3 deploy/outpaint-control.py --config /private/control.json on
 ```
 
-For an existing QNAP installation with its service-user configuration already present, upgrade the uploaded package manually:
+Older personal 1.0.1 packages may have compiled-in user/runtime settings and no `/etc/config/nas-tv-wallpaper.conf`. Before upgrading, create a private service configuration using the **existing** service user and runtime directory (the directory already containing `server.env`); do not switch to a new empty runtime directory. `deploy/qpkg/qpkg.conf.example` shows the format. After placing the correctly filled file on NAS, install it as root:
+
+```sh
+sudo cp /share/Public/nas-tv-wallpaper.conf /etc/config/nas-tv-wallpaper.conf
+sudo chmod 600 /etc/config/nas-tv-wallpaper.conf
+```
+
+With that configuration present, upgrade the uploaded package manually:
 
 ```sh
 sudo /bin/sh /share/Public/NasTvWallpaper_1.3.0_arm_64.qpkg
