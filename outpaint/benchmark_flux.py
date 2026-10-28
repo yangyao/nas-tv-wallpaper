@@ -108,6 +108,7 @@ def main():
     ap.add_argument("--prompt", required=True)
     ap.add_argument("--seed", type=int, default=164211176398261)
     ap.add_argument("--steps", type=int, default=20)
+    ap.add_argument("--guidance", type=float, default=30.0)
     ap.add_argument(
         "--conditioning", help="Cached conditioning filename from cache_flux_prompt.py"
     )
@@ -118,6 +119,8 @@ def main():
         help="Local ComfyUI root, required with cached conditioning",
     )
     args = ap.parse_args()
+    if not 1 <= args.guidance <= 100:
+        ap.error("guidance must be between 1 and 100")
     cache_metadata = None
     if args.conditioning:
         if (
@@ -165,6 +168,7 @@ def main():
         upload.get("subfolder", "") + "/" if upload.get("subfolder") else ""
     ) + upload["name"]
     graph = workflow(name, width, args.model, args.prompt, args.seed, args.steps)
+    graph["26"]["inputs"]["guidance"] = args.guidance
     if args.conditioning:
         del graph["34"]
         graph["23"] = {
