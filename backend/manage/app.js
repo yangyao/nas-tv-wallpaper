@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);let snapshot=null,busy=false;
 const names={pending:'待處理',processing:'處理中',approved:'已完成',review:'待發布',failed:'失敗',rejected:'已排除'};
-const errors={timeout:'處理逾時',network_error:'網路或服務請求失敗',validation_error:'圖片或設定驗證失敗',processing_error:'處理程序出錯',capture_date_out_of_range:'拍攝日期不在最近年限內'};
+const errors={unwanted_people:'擴圖區域疑似新增人物，已排除',timeout:'處理逾時',network_error:'網路或服務請求失敗',validation_error:'圖片或設定驗證失敗',processing_error:'處理程序出錯',capture_date_out_of_range:'拍攝日期不在最近年限內'};
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
 function date(value){return value?new Date(value*1000).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';}
 function taken(value){return value?value.slice(0,10).replaceAll(':','-'):'日期不明';}

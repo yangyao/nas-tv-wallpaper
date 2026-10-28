@@ -409,7 +409,7 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		switch failure.Code {
-		case "", "timeout", "network_error", "validation_error", "processing_error":
+		case "", "timeout", "network_error", "validation_error", "processing_error", "unwanted_people":
 		default:
 			http.Error(w, "invalid failure code", 400)
 			return
@@ -420,6 +420,9 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 			j := &q.Jobs[i]
 			if j.ID == id && j.Status == "processing" && j.Worker == r.Header.Get("X-Worker-ID") {
 				j.Status = "failed"
+				if failure.Code == "unwanted_people" {
+					j.Status = "rejected"
+				}
 				j.ErrorCode = failure.Code
 				j.Lease = 0
 				j.Updated = time.Now().Unix()

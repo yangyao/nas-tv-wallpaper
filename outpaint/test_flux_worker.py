@@ -4,9 +4,11 @@ import pathlib
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from PIL import Image
 from flux_worker import FluxWorker, DEFAULT_PROMPT
 from soften_outpaint import soften
+from people_guard import NewPeopleDetected
 
 
 class Response:
@@ -65,6 +67,28 @@ class Http:
 
 
 class FluxWorkerTests(unittest.TestCase):
+    def test_cached_result_cannot_bypass_people_guard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            w, job, folder, calls = self.setup_worker(
+                directory, auto_approve=True, people_guard=True, people_detector="detector"
+            )
+            Image.new("RGB", (1920, 1080)).save(folder / "result.jpg")
+            with patch("flux_worker.check_result", return_value={"passed": False}):
+                with self.assertRaises(NewPeopleDetected):
+                    w.process(job)
+            self.assertEqual(calls, [])
+
+    def test_detector_failure_cannot_upload_or_approve(self):
+        with tempfile.TemporaryDirectory() as directory:
+            w, job, folder, calls = self.setup_worker(
+                directory, auto_approve=True, people_guard=True, people_detector="detector"
+            )
+            Image.new("RGB", (1920, 1080)).save(folder / "result.jpg")
+            with patch("flux_worker.check_result", side_effect=ValueError("bad detector")):
+                with self.assertRaises(ValueError):
+                    w.process(job)
+            self.assertEqual(calls, [])
+
     def setup_worker(self, directory, **overrides):
         root = pathlib.Path(directory)
         emb = root / "comfy/models/embeddings"

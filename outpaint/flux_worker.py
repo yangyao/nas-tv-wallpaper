@@ -11,6 +11,7 @@ from PIL import Image, ImageOps
 from worker import Worker, atomic_json
 from benchmark_flux import workflow, execution_seconds
 from soften_outpaint import soften
+from people_guard import check_result, NewPeopleDetected
 
 VERSION = "flux-fill-light-v1"
 DEFAULT_PROMPT = "Extend the photograph naturally, maintaining the existing surroundings, lighting, perspective and colors. A coherent, unobtrusive continuation of the environment."
@@ -74,7 +75,7 @@ class FluxWorker(Worker):
         if queue["queue_running"] or queue["queue_pending"]:
             print("ComfyUI busy; skipping this interval", flush=True)
             return
-        if self.c.get("auto_approve", False):
+        if self.c.get("auto_approve", False) and not self.c.get("people_guard", False):
             # Retry a decision if the image upload succeeded but its decision request failed.
             for job in self.nas("GET", "jobs").json()["jobs"]:
                 if (
@@ -261,6 +262,16 @@ class FluxWorker(Worker):
         )
 
     def publish(self, job, folder):
+        if self.c.get("people_guard", False):
+            helper = self.c.get("people_detector")
+            if not helper:
+                raise ValueError("people detector must be configured")
+            # Always inspect cached/recovered results too. Missing raw images,
+            # detector failures or malformed replies must never upload/approve.
+            report = check_result(folder, helper)
+            atomic_json(folder / "people-check.json", report)
+            if not report["passed"]:
+                raise NewPeopleDetected("people found in generated margins")
         with (folder / "result.jpg").open("rb") as f:
             self.nas(
                 "PUT",

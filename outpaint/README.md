@@ -176,3 +176,20 @@ Capture-date filtering defaults to the rolling last ten years, with unknown/futu
 To populate the retained slideshow batches sooner, set `start_hour: 0`, `end_hour: 24` and `max_per_day: 96` in the private worker configuration. Install with `install_agents.py --root <runtime> --config <private-config> --worker --interval 300 --count 10`. This runs up to ten jobs sequentially per invocation, with a filesystem lock preventing overlap; the daily limit includes failures. Generation remains single-task, not parallel GPU work. The Mac must be awake, and macOS Local Network permission must allow the background worker to reach NAS. Verify a task actually enters processing after installation; an SSH health check alone does not verify LaunchAgent permissions.
 
 NAS publication is independent: it publishes changed completed batches every two hours and retains the latest ten. These are rolling snapshots and may share photos, not ten disjoint sets of twenty. TV checks for changes every fifteen minutes while Home is visible; a producer outage retains the last valid cache.
+
+### Reject generated people before publication
+
+For local FLUX production, compile the optional Apple Vision helper on the Mac:
+
+```sh
+cd outpaint
+xcrun swiftc -O people_boxes.swift -o people-boxes
+```
+
+In the private worker configuration set `people_guard: true` and `people_detector` to that executable's absolute path. This setting is off in the example. The helper uses local [face and human rectangle detection](https://developer.apple.com/documentation/vision/vndetecthumanrectanglesrequest); images are not sent to a remote model.
+
+The worker checks both the unsoftened generation and final JPEG, including contextual crops of each side margin. A face substantially outside the source rectangle, or a person centred in the generated margins, blocks upload and approval. Edge-cropped original faces substantially completed by AI can also be rejected intentionally. It writes private `people-check.json` evidence. Cached results must pass the same gate; missing raw images, helper failure or invalid responses block publication. Automatically approving old review tasks by status alone is disabled when this gate is enabled.
+
+Detected margin people yield `unwanted_people`: NAS permanently rejects that task rather than retrying the same cached generation. Automatic sampling then supplies another source. Other detection failures remain failed tasks with bounded retry. The gate does not modify the original light-softening recipe or add stronger blur. Keep the NAS backend updated before enabling it so this reason code is accepted. Manual authenticated administrative decisions remain available.
+
+This detector is a conservative filter, not proof that a result contains no invented person. Stylised, tiny, occluded or unusual figures can be missed; original edge subjects may be over-rejected. Recheck retained publications when first enabling the policy: rejection affects future selection but does not automatically revoke an existing retained batch or a TV's offline cache. Retire affected batches and let NAS publish a checked replacement. TV refresh occurs while Home is visible.
