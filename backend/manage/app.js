@@ -8,16 +8,18 @@ function taken(value){return value?value.slice(0,10).replaceAll(':','-'):'日期
 async function refresh(){if(busy)return;busy=true;$('refresh').disabled=true;try{const r=await fetch('/manage/api/overview',{credentials:'omit',cache:'no-store'});if(!r.ok)throw new Error('暫時無法讀取 NAS，稍後再重新整理。');snapshot=await r.json();render(snapshot);$('notice').hidden=snapshot.serving&&snapshot.published_mode;if(!snapshot.serving)$('notice').textContent='供圖已暫停，電視繼續使用有效的舊快取。';else if(!snapshot.published_mode)$('notice').textContent='尚未啟用成品批次發布。';}catch(error){$('notice').textContent=error.message+(snapshot?' 畫面保留上次資料。':'');$('notice').hidden=false;}finally{busy=false;$('refresh').disabled=false;}}
 function render(d){
  $('summary').textContent=(d.serving?'供圖正常':'供圖暫停')+' · 只顯示最近 '+d.capture_years+' 年的成品照片';
- for(const [id,label,value] of [['photo-count','目前照片',d.current_photos],['batch-count','有效批次',d.available_batches+' / '+d.max_batches],['pending-count','待處理',d.counts.pending||0],['processing-count','處理中',d.counts.processing||0]]){const e=$(id);e.replaceChildren(document.createTextNode(label+' '),node('strong','',String(value)));}
+ for(const [id,label,value] of [['photo-count','目前照片',d.current_photos],['batch-count',d.pool_mode?'成品池':'有效批次',d.available_batches+' / '+d.max_batches],['pending-count','待處理',d.counts.pending||0],['processing-count','處理中',d.counts.processing||0]]){const e=$(id);e.replaceChildren(document.createTextNode(label+' '),node('strong','',String(value)));}
+ $('pool-progress').hidden=!d.pool_mode;
+ if(d.pool_mode)$('pool-progress').textContent=d.available_batches<d.max_batches?'正在補足成品池 · 下一批已完成 '+d.next_batch_ready+' / '+d.batch_target_size+' 張':'成品池已備好 '+d.available_batches+' 批 · '+(d.next_prepare_at>d.server_time?'下次補貨 '+date(d.next_prepare_at):'正在準備替換批次 · 已完成 '+d.next_batch_ready+' / '+d.batch_target_size+' 張');
  $('updated').textContent='更新 '+date(d.server_time);const current=d.batches.find(b=>b.current);$('current-heading').textContent=d.serving?'目前的照片':'已保存的照片';$('current-details').textContent=current?'批次 '+current.batch_id.slice(0,8)+' · '+date(current.published_at)+' 發布':'';$('no-photos').hidden=!!current;$('photos').replaceChildren();
  if(current)appendPhotos($('photos'),current.photos,'目前批次');
- $('batch-summary').textContent='批次記錄 · '+d.available_batches+' 份可用';$('batches').replaceChildren();
+ $('batch-summary').textContent=d.pool_mode?'成品池 · '+d.available_batches+' / '+d.max_batches+' 批':'批次記錄 · '+d.available_batches+' 份可用';$('batches').replaceChildren();
  for(const b of d.batches){
   const detail=node('details','batch-detail'),summary=node('summary','batch-row'),left=node('div'),right=node('div','right');
   detail.open=expandedBatches.has(b.batch_id);
   left.append(node('code','',b.batch_id.slice(0,12)),node('p','',date(b.published_at)+' 發布'));
   if(b.reason)left.append(node('p','',b.reason));
-  right.append(node('span','pill '+(b.current?'current':''),b.current?'目前版本':b.available?'歷史可用':'不供應'),node('p','',b.photos.length+' 張 · 展開看照片'));
+  right.append(node('span','pill '+(b.current?'current':''),b.bootstrap?'過渡批次（不計入成品池）':!b.available?'不供應':b.current?'目前供應':'備用批次'),node('p','',b.photos.length+' 張 · 展開看照片'));
   summary.append(left,right);detail.append(summary);
   const gallery=node('div','photos');let loaded=false;
   const load=()=>{if(!loaded){appendPhotos(gallery,b.photos,'批次 '+b.batch_id.slice(0,8));loaded=true;}};

@@ -36,13 +36,15 @@ type PaintJob struct {
 	ErrorCode  string  `json:"error_code,omitempty"`
 }
 type PaintQueue struct {
-	mu          sync.Mutex
-	maxAgeYears int
-	dir         string
-	Jobs        []PaintJob       `json:"jobs"`
-	Sources     map[string]Photo `json:"sources,omitempty"`
-	Autofill    bool             `json:"-"`
-	Serve       bool             `json:"-"`
+	keepApproved func(string) bool
+	canProduce   func() bool
+	mu           sync.Mutex
+	maxAgeYears  int
+	dir          string
+	Jobs         []PaintJob       `json:"jobs"`
+	Sources      map[string]Photo `json:"sources,omitempty"`
+	Autofill     bool             `json:"-"`
+	Serve        bool             `json:"-"`
 }
 
 func newPaintQueue(dir string, autofill, serve bool) (*PaintQueue, error) {
@@ -114,6 +116,9 @@ func (q *PaintQueue) enqueue(p Photo, workflow, prompt string) (PaintJob, error)
 		if q.Autofill {
 			for i, candidate := range q.Jobs {
 				if candidate.Status != "approved" && candidate.Status != "rejected" {
+					continue
+				}
+				if candidate.Status == "approved" && q.keepApproved != nil && recentTaken(q.Sources[candidate.PhotoID].Meta.Taken, time.Now(), q.maxAgeYears) && q.keepApproved(candidate.ID) {
 					continue
 				}
 				if oldest < 0 || candidate.Updated < q.Jobs[oldest].Updated {
@@ -196,6 +201,10 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if path == "claim" && r.Method == "POST" {
+		if q.canProduce != nil && !q.canProduce() {
+			w.WriteHeader(204)
+			return
+		}
 		var req struct {
 			Worker   string `json:"worker"`
 			Workflow string `json:"workflow"`

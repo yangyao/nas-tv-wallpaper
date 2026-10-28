@@ -2,8 +2,9 @@
 <main><header><div><h1>電視桌面幻燈片</h1><p id="summary">正在讀取…</p></div><button id="refresh">重新整理 ↻</button></header>
 <div id="notice" role="status" hidden></div>
 <div class="overview"><span id="photo-count"></span><span id="batch-count"></span><span id="pending-count"></span><span id="processing-count"></span><span id="updated"></span></div>
+<p id="pool-progress" hidden></p>
 <section><div class="section-heading"><h2 id="current-heading">目前的照片</h2><span id="current-details"></span></div><div id="photos" class="photos"></div><p id="no-photos" class="empty" hidden>成品準備好後會出現在這裡；電視暫時繼續使用舊快取或本地壁紙。</p></section>
-<details><summary id="batch-summary">批次記錄</summary><div id="batches"></div><p class="note">最多保留 10 批。沒有不同的新成品時，維持原批次，不會到期就刪除。</p></details>
+<details><summary id="batch-summary">批次記錄</summary><div id="batches"></div><p class="note">成品池目標 10 批，每批 20 張；新批全部完成後才替換舊批。首次補滿前會持續準備，原有可用照片仍可播放。</p></details>
 <details><summary id="task-summary">任務狀態</summary><div class="filters"><label><input id="include-old" type="checkbox">包含舊測試</label><select id="job-filter" aria-label="任務狀態"><option value="all">全部狀態</option><option value="pending">待處理</option><option value="processing">處理中</option><option value="failed">失敗</option><option value="approved">已完成</option><option value="rejected">已排除</option></select></div><div class="table-wrap"><table><thead><tr><th>任務</th><th>狀態</th><th>拍攝日期</th><th>更新時間</th><th>備註</th></tr></thead><tbody id="jobs"></tbody></table></div><p id="jobs-empty" class="empty" hidden>沒有符合條件的任務。</p></details>
 <footer id="footer">僅查看 · 內網使用 · 可見時每 30 秒更新</footer></main>
 <dialog id="preview"><div class="dialog-top"><span id="preview-title"></span><button id="close-preview">關閉 ✕</button></div><img id="preview-image" alt="已完成照片預覽"></dialog>

@@ -21,6 +21,10 @@ NAS sampling is limited to 100 metadata candidates, 32 directory chunks of 256 e
 
 A fixed local ComfyUI workflow and thin pull worker can precompute landscape derivatives. NAS queue/result storage are opt-in, approved results require a separate serving switch, and originals remain read-only. See [outpaint/README.md](outpaint/README.md) for setup, model provenance, review and rollback.
 
+## Prepared batch pool
+
+With opt-in NAS integration, `NAS_PHOTO_BATCH_POOL=1` prepares ten independent batches of twenty approved photos. Bootstrap fills continuously; once full, a completed replacement atomically replaces the oldest batch after the configured two-hour interval. TV rotates prepared batches independently. The management page shows pool size and next-batch progress separately; pre-pool photos remain as a clearly labelled transition batch. See [operation and migration](docs/PUBLISHED-WALLPAPERS.md).
+
 ## Slideshow status page
 
 Open `http://<NAS-LAN-IP>:8791/manage` on the home network. This is a small read-only page for the TV desktop slideshow: current finished photos, available batches and task status. Details are collapsed by default. Expand a batch record to view its photos and click a thumbnail for a full-size preview. Galleries load when expanded, and open batches stay expanded during the visible page’s 30-second refresh.

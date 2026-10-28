@@ -107,13 +107,13 @@ func (s *Server) managementOverview(w http.ResponseWriter, r *http.Request) {
 			currentPhotos = len(b.Photos)
 		}
 		s.published.mu.RLock()
-		saved := append([]PublishedBatch{}, s.published.index.Batches...)
+		saved := s.published.allBatches()
 		s.published.mu.RUnlock()
 		for i := len(saved) - 1; i >= 0; i-- {
 			b := saved[i]
 			valid := s.published.complete(b)
 			reason := ""
-			if valid {
+			if valid && !b.Bootstrap {
 				available++
 			} else {
 				reason = "檔案缺失或拍攝日期不符合條件"
@@ -156,7 +156,12 @@ func (s *Server) managementOverview(w http.ResponseWriter, r *http.Request) {
 	if !s.startedAt.IsZero() {
 		uptime = int64(now.Sub(s.startedAt).Seconds())
 	}
-	paintJSON(w, map[string]interface{}{"server_time": now.Unix(), "uptime_seconds": uptime, "version": "1.4.0", "published_mode": s.published != nil, "serving": serve, "automatic_sampling": autofill, "max_batches": publishedLimit, "batch_target_size": publishedSize, "soft_ttl_seconds": int(publishedTTL.Seconds()), "capture_years": years, "capture_cutoff": now.AddDate(-years, 0, 0).Format("2006-01-02"), "current_batch_id": currentID, "current_photos": currentPhotos, "available_batches": available, "retained_batches": len(batches), "batches": batches, "jobs": jobs, "counts": counts, "worker_last_activity": lastActivity})
+	poolMode := s.published != nil && s.published.pool
+	ready, nextPrepare := 0, int64(0)
+	if poolMode {
+		ready, nextPrepare = s.published.poolProgress(now)
+	}
+	paintJSON(w, map[string]interface{}{"pool_mode": poolMode, "next_batch_ready": ready, "next_prepare_at": nextPrepare, "server_time": now.Unix(), "uptime_seconds": uptime, "version": "1.4.0", "published_mode": s.published != nil, "serving": serve, "automatic_sampling": autofill, "max_batches": publishedLimit, "batch_target_size": publishedSize, "soft_ttl_seconds": int(publishedTTL.Seconds()), "capture_years": years, "capture_cutoff": now.AddDate(-years, 0, 0).Format("2006-01-02"), "current_batch_id": currentID, "current_photos": currentPhotos, "available_batches": available, "retained_batches": len(batches), "batches": batches, "jobs": jobs, "counts": counts, "worker_last_activity": lastActivity})
 }
 func (s *Server) managementThumbnail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" && r.Method != "HEAD" {

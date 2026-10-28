@@ -2,14 +2,21 @@
 
 NAS owns task inventory, publication and downloads. Mac is an offline producer; TV only understands completed, versioned photo batches. No AI request is made by the television.
 
-## Production and publication
+## Fixed prepared pool
 
-- With `NAS_PHOTO_BATCH_PUBLISH=1`, a resident one-minute NAS maintenance loop inspects the bounded result queue, publishes ready results and maintains up to six pending jobs for the configured workflow. It never recursively indexes the photo archive.
-- Mac's configured schedule claims those jobs, produces the selected light treatment, and uploads completed JPEGs. Only approved results matching `NAS_PHOTO_PUBLISH_WORKFLOW` enter publication.
-- Each batch contains 1–20 completed images. Startup can publish a smaller batch; missing capacity is never filled with raw photos. The target is at most ten retained batches, filled gradually rather than manufacturing ten duplicates at startup.
-- New approved content triggers publication on the next one-minute maintenance tick; it does not wait for the two-hour **soft TTL**. That TTL only requests rotation when the eligible ready inventory is unchanged. If the available completed batch would be identical, its version remains unchanged and clients keep their cache; no duplicate publication is manufactured. A failed producer or failed publication retains the previous complete batch. The new batch's assets are written first, then one atomically replaced, persisted index publishes the whole batch.
-- Images use immutable content-derived addresses and SHA-256 hashes. Batches may reuse the same image without copying it on NAS. Only files no longer referenced by any of the ten retained batches are collected. Result-queue eviction does not break a retained published batch.
-- Unchanged result files are checked by size/mtime and are not read/hashed every minute. Queue size remains at most 200. Mac diagnostic retention remains 40 completed folders.
+Enable `NAS_PHOTO_BATCH_PUBLISH=1` and `NAS_PHOTO_BATCH_POOL=1`. The one-minute NAS maintenance task prepares a pool of **ten independent batches of exactly twenty approved images**. Mac claims a bounded six-task queue, uses the selected light treatment and the two people checks, and uploads completed JPEGs. No recursive archive scan is introduced.
+
+- **Bootstrap:** keep producing without a time gate until ten full batches exist. Nineteen good images are staging, not a finished batch. A newly completed batch is committed immediately; incomplete or rejected results never fill a slot.
+- **Steady state:** two hours after the last prepared batch, production resumes for the next twenty fresh approved images. Only after all new assets and the atomic index are durable is the oldest batch replaced. Failure keeps the previous ten. The interval is not a deletion deadline.
+- **TV selection:** independently rotate through valid prepared batches every two hours. Preparing a reserve batch does not immediately interrupt the currently selected batch. TV still polls every fifteen minutes while Home is visible and downloads no raw originals.
+- **Distinct inventory:** active batches do not share a JPEG. Assigned ready results are recorded as used, and the source IDs of active pool photos are excluded from sampling. This does not guarantee that two different source files are not visual copies.
+- **Bounded storage:** the queue and fingerprint cache remain at most 200 records; active published JPEGs are independent of queue eviction. Unassigned recent approved results are protected from eviction while staging a batch. Only published assets with no pool/bridge reference are collected. A failed atomic write never evicts the old batch.
+- **Migration:** previous rolling snapshots are consolidated into one optional **transition batch**. It remains playable and viewable, but does not count towards ten full batches. Already approved photos can be used once in the first full pool batch; no regeneration is required. The transition asset references remain available for cached/in-flight TV requests.
+- **Persistence:** `pool_version`, current selection/time, last preparation time, staging fingerprints and used markers live in the existing private `index.json`. Restarting does not reset the pool or generate duplicate batches. Once the index is migrated, the backend recognises pool mode even if its enabling environment line is omitted.
+
+The management page distinguishes `成品池 N / 10` from `下一批已完成 M / 20` and labels the old transition batch separately. Every full or transition batch can be expanded to view its photos. Hardware throughput, selection rejection and Mac sleep can delay filling; the application does not wake the Mac or parallelise GPU jobs. With approximately seven to eight minutes per generated candidate, 200 accepted photos require at least about a day of generation, plus rejected candidates. A high optional daily attempt budget avoids spending a small budget on fast no-person rejections; all generation is local and single-task.
+
+Without pool mode, the legacy rolling-snapshot publication logic is retained for existing installations. It is not a ten-batch prepared pool.
 
 ## Capture dates
 
@@ -39,6 +46,7 @@ NAS_PHOTO_OUTPAINT=1
 NAS_PHOTO_OUTPAINT_AUTOFILL=1
 NAS_PHOTO_OUTPAINT_SERVE=1
 NAS_PHOTO_BATCH_PUBLISH=1
+NAS_PHOTO_BATCH_POOL=1
 NAS_PHOTO_PUBLISH_WORKFLOW='RECIPE_KEY_FROM_MAC'
 NAS_PHOTO_MAX_AGE_YEARS=10
 ```
@@ -69,3 +77,7 @@ sudo /bin/sh /share/Public/NasTvWallpaper_1.3.0_arm_64.qpkg
 Runtime settings, photos and published data live outside the package and survive upgrades. For a new installation, configure the service user/runtime directory first, following the existing QPKG instructions. Do not disable TV debugging as part of installation or rollback.
 
 Validation covers conditional manifests, hashes, strict legacy compatibility, empty pools, soft expiry, failed atomic publication, restart persistence, ten-version retention/GC, concurrent readers, capture-date boundary/leap-day rules, and Android protocol checks. Runtime status is available through the existing `nas-status` content-provider call, including protocol, batch ID, complete/pending counts and hard validity; no token is returned.
+
+### Pool rollout and rollback
+
+Before first migration, stop NAS briefly and back up the runtime `server.env`, `data/published/index.json`, and installed backend binary to a private backup directory. Enable the pool flag and start the new backend; check `/manage` for separate pool/staging counts and the transition batch. Preserve existing tokens, recent-photo filtering and people checks. To roll back to a pre-pool binary, restore its matching pre-pool index and configuration together while stopped; simply removing the environment line does not undo a persisted migration. Keep the backup private. The live application-directory scripts and binaries can be updated as their service owner; this does not require disabling TV debugging.

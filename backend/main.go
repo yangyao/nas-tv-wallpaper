@@ -265,6 +265,20 @@ func main() {
 			log.Fatal(e)
 		}
 		app.published.maxAgeYears = sampler.maxAgeYears
+		if os.Getenv("NAS_PHOTO_BATCH_POOL") == "1" {
+			if e = app.published.enablePool(); e != nil {
+				log.Fatal(e)
+			}
+		}
+		if app.published.pool {
+			app.outpaint.keepApproved = func(id string) bool {
+				app.published.mu.RLock()
+				defer app.published.mu.RUnlock()
+				item, ok := app.published.index.Sources[id]
+				return !ok || !item.Used
+			}
+			app.outpaint.canProduce = func() bool { return app.published.poolNeedsWork(time.Now()) }
+		}
 		go app.maintainPublished(runContext)
 	}
 	server := &http.Server{Addr: *listen, Handler: app.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 90 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}

@@ -23,15 +23,17 @@ const publishedSize = 20
 const publishedTTL = 2 * time.Hour
 
 type PublishedPhoto struct {
-	ID     string `json:"id"`
-	URL    string `json:"url"`
-	SHA256 string `json:"sha256"`
-	Bytes  int64  `json:"bytes"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Taken  string `json:"taken"`
+	SourceID string `json:"source_id,omitempty"`
+	ID       string `json:"id"`
+	URL      string `json:"url"`
+	SHA256   string `json:"sha256"`
+	Bytes    int64  `json:"bytes"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Taken    string `json:"taken"`
 }
 type PublishedBatch struct {
+	Bootstrap  bool             `json:"bootstrap,omitempty"`
 	ID         string           `json:"batch_id"`
 	Published  int64            `json:"published_at"`
 	Expires    int64            `json:"expires_at"`
@@ -40,16 +42,23 @@ type PublishedBatch struct {
 	Photos     []PublishedPhoto `json:"photos"`
 }
 type publishedSource struct {
+	Used     bool           `json:"used,omitempty"`
 	Size     int64          `json:"size"`
 	Modified int64          `json:"modified"`
 	Photo    PublishedPhoto `json:"photo"`
 }
 type publishedIndex struct {
-	Batches   []PublishedBatch           `json:"batches"`
-	Sources   map[string]publishedSource `json:"sources"`
-	Signature string                     `json:"signature"`
+	PoolVersion int                        `json:"pool_version,omitempty"`
+	Bridge      *PublishedBatch            `json:"bridge,omitempty"`
+	CurrentID   string                     `json:"current_id,omitempty"`
+	SelectedAt  int64                      `json:"selected_at,omitempty"`
+	PreparedAt  int64                      `json:"prepared_at,omitempty"`
+	Batches     []PublishedBatch           `json:"batches"`
+	Sources     map[string]publishedSource `json:"sources"`
+	Signature   string                     `json:"signature"`
 }
 type PublishedStore struct {
+	pool          bool
 	mu            sync.RWMutex
 	build         sync.Mutex
 	dir, workflow string
@@ -79,7 +88,18 @@ func newPublishedStore(dir, workflow string) (*PublishedStore, error) {
 	if p.index.Sources == nil {
 		p.index.Sources = map[string]publishedSource{}
 	}
-	for _, b := range p.index.Batches {
+	if p.index.PoolVersion < 0 || p.index.PoolVersion > 1 {
+		return nil, fmt.Errorf("unsupported pool version")
+	}
+	p.pool = p.index.PoolVersion == 1
+	if p.pool {
+		for _, b := range p.index.Batches {
+			if len(b.Photos) != publishedSize || b.Bootstrap {
+				return nil, fmt.Errorf("incomplete pool batch")
+			}
+		}
+	}
+	for _, b := range p.allBatches() {
 		if !idPattern.MatchString(b.ID) || len(b.Photos) == 0 || len(b.Photos) > publishedSize {
 			return nil, fmt.Errorf("invalid published batch")
 		}
@@ -90,6 +110,13 @@ func newPublishedStore(dir, workflow string) (*PublishedStore, error) {
 		}
 	}
 	return p, nil
+}
+func (p *PublishedStore) allBatches() []PublishedBatch {
+	batches := append([]PublishedBatch{}, p.index.Batches...)
+	if p.index.Bridge != nil {
+		batches = append([]PublishedBatch{*p.index.Bridge}, batches...)
+	}
+	return batches
 }
 func validPublishedPhoto(a PublishedPhoto) bool {
 	_, err := hex.DecodeString(a.SHA256)
@@ -113,18 +140,28 @@ func (p *PublishedStore) complete(b PublishedBatch) bool {
 func (p *PublishedStore) latest() (PublishedBatch, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	if p.pool {
+		for _, b := range p.index.Batches {
+			if b.ID == p.index.CurrentID && p.complete(b) {
+				return b, true
+			}
+		}
+	}
 	for i := len(p.index.Batches) - 1; i >= 0; i-- {
 		if p.complete(p.index.Batches[i]) {
 			return p.index.Batches[i], true
 		}
+	}
+	if p.index.Bridge != nil && p.complete(*p.index.Bridge) {
+		return *p.index.Bridge, true
 	}
 	return PublishedBatch{}, false
 }
 func (p *PublishedStore) asset(id string) (PublishedPhoto, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	for i := len(p.index.Batches) - 1; i >= 0; i-- {
-		for _, a := range p.index.Batches[i].Photos {
+	for _, b := range p.allBatches() {
+		for _, a := range b.Photos {
 			if (a.SHA256 == id || a.ID == id) && recentTaken(a.Taken, time.Now(), p.maxAgeYears) {
 				return a, true
 			}
@@ -160,6 +197,9 @@ func atomicPublishedBytes(path string, b []byte) error {
 // A soft expiry never destroys the last completed batch. Only bounded ready files
 // are inspected, and unchanged sources are not read or hashed again.
 func (p *PublishedStore) refresh(q *PaintQueue, now time.Time) error {
+	if p.pool {
+		return p.refreshPool(q, now)
+	}
 	p.build.Lock()
 	defer p.build.Unlock()
 	q.mu.Lock()
@@ -422,6 +462,9 @@ func (s *Server) maintainPublished(ctx context.Context) {
 	}
 }
 func (s *Server) refillPaintQueue(parent context.Context) {
+	if s.published.pool && !s.published.poolNeedsWork(time.Now()) {
+		return
+	}
 	q := s.outpaint
 	q.mu.Lock()
 	pending := 0
@@ -445,6 +488,9 @@ func (s *Server) refillPaintQueue(parent context.Context) {
 		return
 	}
 	for _, photo := range photos {
+		if s.published.pool && s.published.poolHasSource(photo.ID) {
+			continue
+		}
 		w, h := orientedDimensions(photo)
 		if w > h {
 			continue
