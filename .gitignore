@@ -31,3 +31,11 @@ deploy/*local*.json
 *.log
 
 dist/
+
+# Optional local AI weights and private outpainting outputs
+*.safetensors
+*.ckpt
+outpaint/config.local.json
+outpaint/results/
+outpaint/runtime/
+outpaint/face-boxes

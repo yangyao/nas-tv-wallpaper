@@ -19,6 +19,7 @@ import (
 )
 
 type Server struct {
+	outpaint             *PaintQueue
 	sampler              *Sampler
 	token, cache         string
 	batchGate, imageGate chan struct{}
@@ -32,6 +33,7 @@ func (s *Server) handler() http.Handler {
 	})
 	mux.HandleFunc("/v1/batch", s.batch)
 	mux.HandleFunc("/v1/photos/", s.image)
+	mux.HandleFunc("/v1/outpaint/", s.paint)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.URL.Path != "/health" {
@@ -73,8 +75,21 @@ func (s *Server) batch(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 11*time.Second)
 	defer cancel()
-	photos, e := s.sampler.Batch(ctx, req.Count, req.Exclude)
-	if e != nil {
+	photos := []Photo{}
+	if s.outpaint != nil {
+		photos = s.outpaint.selectApproved(req.Count, req.Exclude)
+	}
+	var e error
+	if len(photos) < req.Count {
+		exclude := append([]string{}, req.Exclude...)
+		for _, p := range photos {
+			exclude = append(exclude, p.ID)
+		}
+		var originals []Photo
+		originals, e = s.sampler.Batch(ctx, req.Count-len(photos), exclude)
+		photos = append(photos, originals...)
+	}
+	if e != nil && len(photos) == 0 {
 		log.Printf("batch failed: %v", e)
 		http.Error(w, "sampling unavailable", 503)
 		return
@@ -105,10 +120,30 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	p, e := s.sampler.Photo(id)
+	p, e := s.selectedPhoto(id)
 	if e != nil {
 		http.NotFound(w, r)
 		return
+	}
+	if s.outpaint != nil {
+		if result := s.outpaint.approved(id); result != "" {
+			original, err := s.sampler.safePath(p.Path)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			info, err := os.Stat(original)
+			if err != nil || info.Size() != p.Size || info.ModTime().UnixNano() != p.Modified {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("X-Photo-Width", "1920")
+			w.Header().Set("X-Photo-Height", "1080")
+			w.Header().Set("X-Photo-Variant", "outpaint")
+			w.Header().Set("Cache-Control", "private, max-age=86400")
+			servePaintFile(w, r, result)
+			return
+		}
 	}
 	width, height := p.Meta.Width, p.Meta.Height
 	if p.Meta.Orientation >= 5 && p.Meta.Orientation <= 8 {
@@ -164,6 +199,15 @@ func main() {
 		log.Fatal(e)
 	}
 	app := &Server{sampler: sampler, token: token, cache: filepath.Join(*data, "images"), batchGate: make(chan struct{}, 1), imageGate: make(chan struct{}, 1)}
+	if os.Getenv("NAS_PHOTO_OUTPAINT") == "1" {
+		app.outpaint, e = newPaintQueue(filepath.Join(*data, "outpaint"), os.Getenv("NAS_PHOTO_OUTPAINT_AUTOFILL") == "1", os.Getenv("NAS_PHOTO_OUTPAINT_SERVE") == "1")
+		if e != nil {
+			log.Fatal(e)
+		}
+		if e = app.outpaint.reconcile(sampler); e != nil {
+			log.Fatal(e)
+		}
+	}
 	server := &http.Server{Addr: *listen, Handler: app.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 90 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

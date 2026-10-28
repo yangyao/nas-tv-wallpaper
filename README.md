@@ -17,6 +17,10 @@ Android TV launcher with opt-in, locally cached NAS photo wallpaper, plus a smal
 
 NAS sampling is limited to 100 metadata candidates, 32 directory chunks of 256 entries, roughly ten seconds per batch, and two photos per selected directory. Directory windows and recent-selection state are bounded. Image conversion concurrency is one; service launch uses GOMAXPROCS=1 and a 192 MiB soft memory target. NAS image cache is approximately 200 MiB, TV cache approximately 100 MiB.
 
+## Optional Mac outpainting
+
+A fixed local ComfyUI workflow and thin pull worker can precompute landscape derivatives. NAS queue/result storage are opt-in, approved results require a separate serving switch, and originals remain read-only. See [outpaint/README.md](outpaint/README.md) for setup, model provenance, review and rollback.
+
 ## Repository
 
 - `backend/`: Go standard-library photo server; Go 1.20+.

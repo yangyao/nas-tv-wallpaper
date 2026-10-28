@@ -1,0 +1,88 @@
+# Optional local outpainting (experimental)
+
+**The current SD 1.5 image quality is not production-ready.** Pipeline operation is validated, but the private pilot showed inconsistent scene extension and joins. See [MODEL-EVALUATION.md](MODEL-EVALUATION.md) before enabling automatic serving.
+
+The NAS owns a bounded persistent queue and result cache. A Mac pulls jobs, calls a dedicated local ComfyUI instance, restores the full-resolution source centre and detected faces while softly blending only the background border, and uploads a 1920×1080 JPEG. Outputs enter **review**, never automatic approval. Originals remain read-only. No photo is sent to a cloud inference API.
+
+## NAS feature flags
+
+Add to the private runtime `server.env`, then restart the service:
+
+```sh
+NAS_PHOTO_OUTPAINT=1
+NAS_PHOTO_OUTPAINT_AUTOFILL=0
+NAS_PHOTO_OUTPAINT_SERVE=0
+```
+
+All are off by default. `AUTOFILL=1` allows bounded random sampling when a claim finds no queued work; it does not scan the archive. `SERVE=1` makes approved derivatives available through normal photo GET/HEAD routes, with landscape dimensions. Keep it off while evaluating quality. Disabling either the queue or serving restores normal original-photo behaviour without deleting results.
+
+Queue and JPEGs live under the service data directory's `outpaint/`, maximum 200 jobs. Job IDs deduplicate source ID + workflow version + prompt. Leases last 30 minutes, maximum three attempts; failed jobs wait at least an hour before retry. When full, generation pauses; this initial version does not automatically delete reviewed images. Disable the service and privately back up/archive its outpaint directory before starting a fresh pool. Result uploads must be JPEG, 1920×1080 and at most 4 MiB; NAS re-encodes them to strip metadata.
+
+Authenticated endpoints use the existing Bearer token:
+
+- `GET /v1/outpaint/jobs`: status list.
+- `POST /v1/outpaint/jobs`: enqueue a known sampled `photo_id`, `workflow` and optional `prompt`.
+- `POST /v1/outpaint/claim`: `{worker, workflow}`; 204 means no eligible work was found. Autofill tries one bounded sample and leases an eligible portrait in the same request.
+- `GET /v1/outpaint/jobs/{id}/input`: cropped sharp foreground of the already resized NAS cache, not the original file or its metadata.
+- `PUT /v1/outpaint/jobs/{id}/result`: JPEG body plus `X-Worker-ID`; valid lease required.
+- `GET /v1/outpaint/jobs/{id}/result`: preview derivative.
+- `POST /v1/outpaint/jobs/{id}/decision`: `{status: approved|rejected}`. Pending/failed jobs may be rejected to skip bad sources.
+- `POST /v1/outpaint/jobs/{id}/resume`: renew a failed/current job owned by the same worker, within the attempt budget. For saved generations, `recover.py --config ... JOB_ID` downloads existing Comfy history, reapplies composition and uploads without queuing another GPU task.
+- `POST /v1/outpaint/jobs/{id}/fail`: worker failure, `X-Worker-ID` required.
+
+## Mac setup
+
+Use a dedicated directory such as `~/.local/share/nas-tv-wallpaper/` with:
+
+```text
+ComfyUI/              official source checkout
+.venv/                Python 3.12 + ComfyUI requirements
+outpaint/             this folder
+models/               checkpoint, downloaded separately
+outpaint-config.json  private copy of config.example.json, mode 600
+```
+
+ComfyUI is a separate GPL dependency: https://github.com/Comfy-Org/ComfyUI . The tested checkout is `f49e3b466f637cf0c1120614a7dbcf02ec2805e3`. For this fixed headless workflow the optional workflow-template media packs and embedded docs can be omitted from requirements. Keep the frontend/core dependencies. The tested Mac environment pins `torch==2.12.0`, `torchvision==0.27.0`, and `setuptools==81.0.0`; newer default versions are not assumed compatible. Never install arbitrary custom nodes to run this workflow.
+
+The initial model is Stable Diffusion 1.5 Inpainting, mirrored as safetensors at https://huggingface.co/webui/stable-diffusion-inpainting . Download `sd-v1-5-inpainting.safetensors` (4,265,203,873 bytes), verify SHA-256 `0ec8f8585b104417a8c34a9fbcc1e922a70b8c15490ec4553087f01c8cf33673`, then link it into `ComfyUI/models/checkpoints/`. See the model card and CreativeML Open RAIL-M license before use. Model files are not bundled or committed.
+
+`workflow.json` contains only builtin nodes: load checkpoint/input → text conditioning → masked VAE → KSampler → VAE decode → save. Working canvas 896×504, 24 steps, deterministic seed derived from job ID. The entire source rectangle is protected by the input mask, with mask growth disabled; only the newly added outer canvas is generated. After inference the worker reinstates the sharper source at final resolution. With the optional local Apple Vision helper, a narrow background border is feathered and expanded detected face rectangles are fully protected. If detection is unavailable or returns no faces, it falls back to the strict original rectangle. Detection can miss faces and generated outer content can contain mistakes or unwanted people; review remains necessary. Original files are never overwritten.
+
+Configure a private LAN NAS URL and token in `outpaint-config.json`. Bind ComfyUI only to localhost; run it offline, without partner/API nodes. Do not expose its raw API to the internet. The worker bypasses environment proxies for local ComfyUI/NAS requests.
+
+On macOS with Command Line Tools, compile the optional on-device face helper and set `face_helper` in the private worker config:
+
+```sh
+xcrun swiftc -O outpaint/face_boxes.swift -o outpaint/face-boxes
+```
+
+Apple Vision runs locally; no image is uploaded for face detection. Helper binaries are gitignored. GPU/model inference still uses ComfyUI.
+
+Run a pilot:
+
+```sh
+.venv/bin/python outpaint/worker.py --config outpaint-config.json --count 3
+```
+
+A filesystem lock prevents overlapping workers; daily attempts (including failures) default to six. Processing times include model loading and source fetch. A dedicated instance is required because timeout recovery interrupts its current generation. Private work folders contain original/prepared/generated/final images, workflow, prompt ID and timing for diagnosis. They are never uploaded to GitHub.
+
+Install user LaunchAgents after validating the environment:
+
+```sh
+.venv/bin/python outpaint/install_agents.py \
+  --root "$HOME/.local/share/nas-tv-wallpaper" \
+  --config "$HOME/.local/share/nas-tv-wallpaper/outpaint-config.json" --worker
+```
+
+ComfyUI runs at user login, localhost port 8188. Worker polls every 30 minutes, within config `start_hour`/`end_hour`, one job per run. Mac must be awake and that user logged in; installation does not change system sleep settings or wake the Mac. Use `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.nastv.outpaint-worker.plist` to stop scheduling. Logs are under the dedicated root's `logs/`.
+
+Review using `admin.py --config ... list`, `approve JOB_ID` or `reject JOB_ID`. Approval alone does not affect TV while NAS `SERVE=0`. If serving is enabled later, existing TV caches may continue showing the earlier original until refreshed; no immediate TV cache invalidation is performed.
+
+## Checks
+
+Go queue tests cover auth/feature gates, deduplication, exclusive leases, invalid upload, approval and persistence. `python -m unittest discover -s outpaint -p 'test_*.py'` checks masking and that the full-resolution source centre is preserved. Actual visual quality and MPS timings need representative private samples; do not infer quality from successful generation alone.
+
+
+## Observed pilot
+
+On an M4 / 16 GiB Mac, six 896×504 / 24-step samples took roughly 69–76 seconds each including load/save (GPU generation plus postprocessing; cached-generation recovery was also verified without resubmitting GPU work). First installation/model download is separate and can be slow. Go race tests, fixed-node availability, MPS execution and composition/face-helper integration tests passed. Face-protected edge blending improved visible seams; generated scenery and geometry remain imperfect. No personal samples or credentials are published. Keep automatic sampling and TV serving off until the results meet your needs.

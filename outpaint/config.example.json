@@ -1,0 +1,14 @@
+{
+  "nas_url": "http://192.168.1.10:8791",
+  "token": "GENERATE_YOUR_OWN_PRIVATE_TOKEN",
+  "comfy_url": "http://127.0.0.1:8188",
+  "checkpoint": "sd-v1-5-inpainting.safetensors",
+  "workflow_version": "sd15-inpaint-896-v3",
+  "worker_id": "mac-worker",
+  "work_dir": "~/.local/share/nas-tv-wallpaper/outpaint-results",
+  "max_per_day": 6,
+  "start_hour": 0,
+  "end_hour": 24,
+  "timeout_seconds": 1200,
+  "face_helper": "~/.local/share/nas-tv-wallpaper/outpaint/face-boxes"
+}
