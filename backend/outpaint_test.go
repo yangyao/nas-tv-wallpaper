@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -160,5 +163,51 @@ func TestOutpaintAutofillClaimsImmediatelyAndRecoversLease(t *testing.T) {
 		if bytes.Contains(w.Body.Bytes(), []byte(source.Path)) {
 			t.Fatal("source filesystem path leaked")
 		}
+	}
+}
+
+func TestAutofillRollsOnlyCompletedResultsWithinBound(t *testing.T) {
+	q, _ := newPaintQueue(t.TempDir(), true, true)
+	for i := 0; i < 200; i++ {
+		p := Photo{ID: fmt.Sprintf("%032x", i+1), Meta: PhotoMeta{Width: 300, Height: 400}}
+		j, e := q.enqueue(p, "v1", "")
+		if e != nil {
+			t.Fatal(e)
+		}
+		if i == 0 {
+			q.Jobs[i].Status = "processing"
+		} else {
+			q.Jobs[i].Status = "approved"
+		}
+		q.Jobs[i].Updated = int64(i)
+		os.WriteFile(filepath.Join(q.dir, j.ID+".jpg"), []byte("cached"), 0600)
+	}
+	victim := q.Jobs[1]
+	active := q.Jobs[0]
+	p := Photo{ID: fmt.Sprintf("%032x", 201), Meta: PhotoMeta{Width: 300, Height: 400}}
+	if _, e := q.enqueue(p, "v1", ""); e != nil {
+		t.Fatal(e)
+	}
+	if len(q.Jobs) != 200 || len(q.Sources) != 200 {
+		t.Fatal("unbounded rolling queue")
+	}
+	if _, ok := q.find(active.ID); !ok {
+		t.Fatal("active job evicted")
+	}
+	if _, ok := q.find(victim.ID); ok {
+		t.Fatal("old completed job retained")
+	}
+	if _, e := os.Stat(filepath.Join(q.dir, victim.ID+".jpg")); !os.IsNotExist(e) {
+		t.Fatal("evicted result not removed")
+	}
+	loaded, e := newPaintQueue(q.dir, true, true)
+	if e != nil || len(loaded.Jobs) != 200 {
+		t.Fatal("rollover not persisted")
+	}
+	for i := range q.Jobs {
+		q.Jobs[i].Status = "review"
+	}
+	if _, e := q.enqueue(Photo{ID: fmt.Sprintf("%032x", 202), Meta: PhotoMeta{Width: 300, Height: 400}}, "v1", ""); e == nil {
+		t.Fatal("unreviewed jobs must not be evicted")
 	}
 }

@@ -283,13 +283,25 @@ class Worker:
             atomic_json(statefile, state)
 
 
+def make_worker(config):
+    if config.get("engine", "sd15") == "flux-fill":
+        from flux_worker import FluxWorker
+
+        return FluxWorker(config)
+    if config.get("engine", "sd15") != "sd15":
+        raise ValueError("unknown outpaint engine")
+    return Worker(config)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--config", required=True)
     p.add_argument("--count", type=int, default=1)
     a = p.parse_args()
     config = json.loads(pathlib.Path(a.config).expanduser().read_text())
-    worker = Worker(config)
+    if not config.get("enabled", True):
+        return
+    worker = make_worker(config)
     if (
         not config.get("start_hour", 0)
         <= datetime.datetime.now().hour

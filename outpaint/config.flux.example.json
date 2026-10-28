@@ -1,0 +1,21 @@
+{
+  "enabled": false,
+  "engine": "flux-fill",
+  "nas_url": "http://192.168.1.10:8791",
+  "token": "GENERATE_YOUR_OWN_PRIVATE_TOKEN",
+  "comfy_url": "http://127.0.0.1:8188",
+  "comfy_root": "~/.local/share/nas-tv-wallpaper/ComfyUI",
+  "flux_model": "flux1-fill-dev-Q4_K_S.gguf",
+  "flux_prompt": "Extend the photograph naturally, maintaining the existing surroundings, lighting, perspective and colors. A coherent, unobtrusive continuation of the environment.",
+  "flux_conditioning": "flux-text-c90e7d6ece643979.safetensors",
+  "soften_radius": 10,
+  "soften_feather": 96,
+  "soften_ramp": 260,
+  "auto_approve": false,
+  "worker_id": "mac-worker",
+  "work_dir": "~/.local/share/nas-tv-wallpaper/flux-results",
+  "max_per_day": 6,
+  "start_hour": 2,
+  "end_hour": 6,
+  "timeout_seconds": 1200
+}

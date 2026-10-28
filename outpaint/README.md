@@ -137,6 +137,30 @@ python soften_outpaint.py --source /private/original.jpg \
   --output /private/flux/softened.png
 ```
 
-The output is 1920×1080. Default Gaussian radius is 28 output pixels, with a 96-pixel source-edge feather and 260-pixel outward ramp. Increase `--radius` to 44 for stronger detail suppression. A Gaussian pyramid varies blur smoothly by distance from the original image boundary. The original source is restored in the centre; only its side edges are feathered. The geometry follows the benchmark's exact eight-pixel-aligned padding, including rounded portrait widths. Parameters are saved beside the image.
+The output is 1920×1080. Default Gaussian radius is 10 output pixels (the selected light setting), with a 96-pixel source-edge feather and 260-pixel outward ramp. Use `--radius 16` for moderate softening, or 28/44 for the older stronger variants. A Gaussian pyramid varies blur smoothly by distance from the original image boundary. The original source is restored in the centre; only its side edges are feathered. The geometry follows the benchmark's exact eight-pixel-aligned padding, including rounded portrait widths. Parameters are saved beside the image.
 
 This suppresses invented lettering and fine background detail while retaining broad colours and shapes. It is a spatial margin treatment, not depth estimation or true optical bokeh: generated extensions of a subject crossing the original frame are also softened. Do not interpret it as reconstruction of the real scene. Private sample previews remain outside the public checkout.
+
+## Scheduled FLUX Fill + selected light treatment
+
+`worker.py` now accepts `engine: "flux-fill"`; the legacy `sd15` engine remains available for rollback. Start from `config.flux.example.json` (disabled and manual review by default). Prepare the exact configured generic prompt with `cache_flux_prompt.py` once, then release the encoder before scheduling generation. The dedicated ComfyUI service must bind to localhost, and existing models must match the verified manifest.
+
+The selected recipe is radius **10**, feather **96**, outward ramp **260**, 20 FLUX Fill sampling steps, and an unchanged original centre. The workflow key includes a hash of model, prompt and recipe so parameter changes create new jobs instead of reusing old processed output. The accepted manually generated examples can be imported with their original provenance; subsequent jobs use the cached generic prompt.
+
+Set `enabled: true` only after configuring the NAS endpoint/token. `auto_approve: false` keeps new results in manual review; `true` explicitly opts into approving newly generated results for the selected recipe. Rejected results are never automatically reapproved. NAS switches `NAS_PHOTO_OUTPAINT=1`, `NAS_PHOTO_OUTPAINT_AUTOFILL=1` and `NAS_PHOTO_OUTPAINT_SERVE=1` independently enable the queue, bounded automatic source sampling and serving. New installs remain off. No Android APK change is needed for the already installed adaptive NAS launcher: landscape outputs carry 1920×1080 headers and display singly, while unprocessed portraits retain the paired layout.
+
+Schedule: one job per 30-minute LaunchAgent interval, only 02:00–06:00 in the example, maximum six attempts per local calendar day. Mac must be awake and the user's LaunchAgent session available. A busy ComfyUI queue is skipped before claiming a NAS lease. Normal tasks finish inside the 30-minute lease; configured generation timeout is 20 minutes, capped at 25. Errors preserve the original-photo fallback. A saved prompt/raw image/completed result is reused on retries rather than submitting another GPU task. `recover.py` supports both output nodes. Model weights are released after each attempt.
+
+Storage is bounded: Mac retains 40 completed diagnostic folders and cleans its successful Comfy input/output files. NAS holds at most 200 jobs/results; with automatic sampling enabled, the oldest approved/rejected entry rotates out when needed. Pending, processing and unreviewed jobs are protected. No original files are changed or deleted, and no recursive archive scan is added.
+
+### Switching off or rolling back
+
+Copy `deploy/outpaint-control.example.json` to a private path and fill in SSH targets and installation paths. The control program uses existing key-based SSH, never puts tokens on command lines, and does not touch TV debug settings:
+
+```sh
+python3 deploy/outpaint-control.py --config /private/control.json status
+python3 deploy/outpaint-control.py --config /private/control.json off
+python3 deploy/outpaint-control.py --config /private/control.json on
+```
+
+`off` disables new Mac worker invocations and NAS automatic sampling/AI serving. An in-flight generation can finish, but its result is hidden while serving is off. Already downloaded TV images remain until the next successful batch refresh; use the existing `launcher-control.py refresh` when the TV is reachable to request a refresh on Home. Offline TV behaviour and local-wallpaper fallback are preserved. `on` restores NAS sampling/serving, then enables the scheduled Mac worker; it does not start an immediate heavy job. For model rollback, restore the previous private worker configuration and leave serving off until its results have been reviewed.

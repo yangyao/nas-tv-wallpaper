@@ -3,7 +3,7 @@
 
 import argparse, json, pathlib, time, io, re
 from PIL import Image
-from worker import Worker
+from worker import make_worker
 
 p = argparse.ArgumentParser()
 p.add_argument("--config", required=True)
@@ -11,7 +11,7 @@ p.add_argument("id")
 a = p.parse_args()
 if not re.fullmatch(r"[0-9a-f]{32}", a.id):
     p.error("invalid job ID")
-w = Worker(json.loads(pathlib.Path(a.config).expanduser().read_text()))
+w = make_worker(json.loads(pathlib.Path(a.config).expanduser().read_text()))
 folder = w.directory / a.id
 metadata = json.loads((folder / "job.json").read_text())
 job = metadata["job"]
@@ -19,7 +19,11 @@ start = time.monotonic()
 r = w.http.get(w.comfy + "/history/" + metadata["prompt_id"], timeout=20)
 r.raise_for_status()
 history = r.json().get(metadata["prompt_id"])
-images = history.get("outputs", {}).get("8", {}).get("images", []) if history else []
+images = (
+    history.get("outputs", {}).get(getattr(w, "output_node", "8"), {}).get("images", [])
+    if history
+    else []
+)
 if not images:
     raise SystemExit("Generation is not complete; nothing was submitted or changed")
 r = w.http.get(w.comfy + "/view", params=images[0], timeout=20)

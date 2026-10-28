@@ -12,7 +12,7 @@ def smooth(value):
     return value * value * (3 - 2 * value)
 
 
-def soften(source, generated, prepared_size, radius=28, feather=96, ramp=260):
+def soften(source, generated, prepared_size, radius=10, feather=96, ramp=260):
     if generated.size != (1024, 576):
         raise ValueError("Expected an unchanged 1024x576 benchmark output")
     width, height = prepared_size
@@ -23,6 +23,7 @@ def soften(source, generated, prepared_size, radius=28, feather=96, ramp=260):
     left = ((1024 - width) // 16) * 8
     x = round(left * scale)
     size = (round(width * scale), 1080)
+    feather = min(feather, max(1, size[0] // 4))
     original = (
         ImageOps.exif_transpose(source)
         .convert("RGB")
@@ -63,7 +64,7 @@ def main():
     p.add_argument("--generated", type=pathlib.Path, required=True)
     p.add_argument("--prepared", type=pathlib.Path, required=True)
     p.add_argument("--output", type=pathlib.Path, required=True)
-    p.add_argument("--radius", type=float, default=28)
+    p.add_argument("--radius", type=float, default=10)
     p.add_argument("--feather", type=int, default=96)
     p.add_argument("--ramp", type=int, default=260)
     a = p.parse_args()

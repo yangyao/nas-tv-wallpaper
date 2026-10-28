@@ -102,13 +102,41 @@ func (q *PaintQueue) enqueue(p Photo, workflow, prompt string) (PaintJob, error)
 			return j, nil
 		}
 	}
+	var removed *PaintJob
 	if len(q.Jobs) >= 200 {
-		return PaintJob{}, errors.New("queue is full; review/archive existing jobs")
+		oldest := -1
+		if q.Autofill {
+			for i, candidate := range q.Jobs {
+				if candidate.Status != "approved" && candidate.Status != "rejected" {
+					continue
+				}
+				if oldest < 0 || candidate.Updated < q.Jobs[oldest].Updated {
+					oldest = i
+				}
+			}
+		}
+		if oldest < 0 {
+			return PaintJob{}, errors.New("queue is full; review/archive existing jobs")
+		}
+		victim := q.Jobs[oldest]
+		removed = &victim
+		q.Jobs = append(q.Jobs[:oldest], q.Jobs[oldest+1:]...)
+		stillUsed := victim.PhotoID == p.ID
+		for _, remaining := range q.Jobs {
+			stillUsed = stillUsed || remaining.PhotoID == victim.PhotoID
+		}
+		if !stillUsed {
+			delete(q.Sources, victim.PhotoID)
+		}
 	}
 	j := PaintJob{ID: id, PhotoID: p.ID, Workflow: workflow, Prompt: prompt, Status: "pending", Updated: time.Now().Unix()}
 	q.Sources[p.ID] = p
 	q.Jobs = append(q.Jobs, j)
-	return j, q.save()
+	err := q.save()
+	if err == nil && removed != nil {
+		os.Remove(filepath.Join(q.dir, removed.ID+".jpg"))
+	}
+	return j, err
 }
 func (q *PaintQueue) find(id string) (PaintJob, bool) {
 	q.mu.Lock()
@@ -196,6 +224,14 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		full := len(q.Jobs) >= 200
+		if full && q.Autofill {
+			for _, candidate := range q.Jobs {
+				if candidate.Status == "approved" || candidate.Status == "rejected" {
+					full = false
+					break
+				}
+			}
+		}
 		q.mu.Unlock()
 		if q.Autofill && !full {
 			// Bounded sampler, never a recursive scan; skip already queued source/workflow pairs.

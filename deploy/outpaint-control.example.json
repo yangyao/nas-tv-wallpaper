@@ -1,0 +1,7 @@
+{
+  "nas_ssh": "user@192.168.1.10",
+  "nas_runtime_dir": "/share/homes/user/.local/nas-tv-wallpaper",
+  "nas_package_dir": "/share/CACHEDEV1_DATA/.qpkg/NasTvWallpaper",
+  "mac_ssh": "user@192.168.1.20",
+  "mac_root": "/Users/user/.local/share/nas-tv-wallpaper"
+}

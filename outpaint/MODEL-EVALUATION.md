@@ -11,7 +11,7 @@ Primary references checked:
 
 Next quality gate: run one unchanged representative portrait through an official dedicated-fill workflow before extending the scheduler. Check seams, perspective, subject identity and unintended added people, then test at least two different scene types. Keep model/workflow/seed and processing time with every comparison. Selected official examples establish possible quality on those inputs, not a success rate on arbitrary family photographs.
 
-Current operational stance: generated output remains review-only; automatic sampling and TV serving are off in the personal pilot. No family photos were uploaded to a cloud inference service. Cloud demonstrations are references only. Keep the existing single-landscape/paired-portrait wallpaper fallback while evaluating another local model.
+During the initial pilot, generated output was review-only and automatic sampling/TV serving were off. The selected light-treatment deployment is described below. No family photos were uploaded to a cloud inference service. Cloud demonstrations are references only. Keep the existing single-landscape/paired-portrait wallpaper fallback while evaluating another local model.
 
 ## FLUX Fill manual comparison
 
@@ -24,3 +24,10 @@ In that first example the apartment buildings, trees and ground continue much mo
 These are deliberately selected manual scene prompts. They do not establish the success rate of unattended processing with a generic prompt. Do not enable automated TV delivery solely on the basis of these selected examples. Actual media and side-by-side pages remain private and are not included in this repository.
 
 The second car-repair-shop example completed in **444 seconds of execution**, separately from time spent waiting in the queue. The roof canopy, pavement and parked cars continue coherently, but newly invented Chinese signage is visibly incorrect. Both examples improve large-scale continuation over the earlier prototype; neither is artefact-free. Original landscape/paired-portrait delivery and all review gates remain unchanged.
+
+
+## Selected light recipe deployment
+
+Following review of the actual samples, the selected treatment uses radius 10, source-edge feather 96 and outward ramp 260. The original central pixels are restored before JPEG encoding. Two reviewed examples were imported without another diffusion run. A third, newly sampled portrait was processed end to end with the **generic cached prompt**, completed in 435 seconds of ComfyUI execution, softened, uploaded and visually checked. This verifies the automatic integration on one new input; it does not establish an overall photo-library success rate.
+
+The deployed opt-in configuration enables scheduled generation and automatic approval for this recipe. Public example configuration remains disabled with manual review by default. The NAS was tested both ways: serving enabled returned 1920×1080 outpaint headers and valid JPEGs in the batch pool; serving disabled returned the original photo's dimensions and omitted the outpaint variant. Serving was restored after verification. Existing Android adaptive-layout support requires no APK update. Live TV display could not be checked because its ADB connection timed out; debug settings were not changed.
