@@ -20,6 +20,7 @@ import (
 )
 
 type Server struct {
+	startedAt            time.Time
 	published            *PublishedStore
 	outpaint             *PaintQueue
 	sampler              *Sampler
@@ -33,6 +34,18 @@ func (s *Server) handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"ok":true}`)
 	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "/manage", http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc("/manage", s.managementShell)
+	mux.HandleFunc("/manage/", s.managementShell)
+	mux.HandleFunc("/manage/api/overview", s.managementOverview)
+	mux.HandleFunc("/manage/api/images/", s.managementImage)
+	mux.HandleFunc("/manage/thumbs/", s.managementThumbnail)
 	mux.HandleFunc("/v1/batch", s.batch)
 	mux.HandleFunc("/v2/wallpapers/latest", s.publishedLatest)
 	mux.HandleFunc("/v2/wallpapers/assets/", s.publishedAsset)
@@ -40,9 +53,13 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/v1/outpaint/", s.paint)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if r.URL.Path != "/health" {
+		if (r.URL.Path == "/" || r.URL.Path == "/manage" || strings.HasPrefix(r.URL.Path, "/manage/")) && !managementLAN(r) {
+			http.Error(w, "LAN access only", 403)
+			return
+		}
+		if r.URL.Path != "/health" && !managementPublic(r.URL.Path) {
 			got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 {
+			if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 && !s.managementReadAllowed(r) {
 				http.Error(w, "unauthorized", 401)
 				return
 			}
@@ -225,7 +242,7 @@ func main() {
 		}
 		sampler.maxAgeYears = years
 	}
-	app := &Server{sampler: sampler, token: token, cache: filepath.Join(*data, "images"), batchGate: make(chan struct{}, 1), imageGate: make(chan struct{}, 1)}
+	app := &Server{startedAt: time.Now(), sampler: sampler, token: token, cache: filepath.Join(*data, "images"), batchGate: make(chan struct{}, 1), imageGate: make(chan struct{}, 1)}
 	if os.Getenv("NAS_PHOTO_OUTPAINT") == "1" {
 		app.outpaint, e = newPaintQueue(filepath.Join(*data, "outpaint"), os.Getenv("NAS_PHOTO_OUTPAINT_AUTOFILL") == "1", os.Getenv("NAS_PHOTO_OUTPAINT_SERVE") == "1")
 		if e != nil {

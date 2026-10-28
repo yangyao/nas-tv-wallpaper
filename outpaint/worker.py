@@ -268,6 +268,15 @@ class Worker:
                         "POST",
                         "jobs/" + job["id"] + "/fail",
                         headers={"X-Worker-ID": self.identity},
+                        json={
+                            "error_code": "timeout"
+                            if isinstance(error, TimeoutError)
+                            else "network_error"
+                            if isinstance(error, requests.RequestException)
+                            else "validation_error"
+                            if isinstance(error, ValueError)
+                            else "processing_error"
+                        },
                     )
                 except requests.RequestException:
                     pass

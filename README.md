@@ -21,6 +21,12 @@ NAS sampling is limited to 100 metadata candidates, 32 directory chunks of 256 e
 
 A fixed local ComfyUI workflow and thin pull worker can precompute landscape derivatives. NAS queue/result storage are opt-in, approved results require a separate serving switch, and originals remain read-only. See [outpaint/README.md](outpaint/README.md) for setup, model provenance, review and rollback.
 
+## Slideshow status page
+
+Open `http://<NAS-LAN-IP>:8791/manage` on the home network. This is a small read-only page for the TV desktop slideshow: current finished photos, available batches and task status. Details are collapsed by default, and the visible page refreshes every 30 seconds.
+
+The page needs no login. It accepts only direct private-network or loopback peers; forwarded headers do not grant access. TV and worker APIs still require their existing Bearer token, including all mutations. Do not expose this service through an internet-facing proxy. The page does not expose source paths or credentials, and its bounded thumbnail cache does not scan the archive.
+
 ## Repository
 
 - `backend/`: Go standard-library photo server; Go 1.20+.

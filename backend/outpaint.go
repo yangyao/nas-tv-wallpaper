@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/draw"
 	"image/jpeg"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -32,6 +33,7 @@ type PaintJob struct {
 	Updated    int64   `json:"updated"`
 	Seconds    float64 `json:"seconds,omitempty"`
 	LastServed int64   `json:"last_served,omitempty"`
+	ErrorCode  string  `json:"error_code,omitempty"`
 }
 type PaintQueue struct {
 	mu          sync.Mutex
@@ -209,6 +211,7 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 			j := &q.Jobs[i]
 			if q.maxAgeYears > 0 && (j.Status == "pending" || j.Status == "failed") && !recentTaken(q.Sources[j.PhotoID].Meta.Taken, time.Now(), q.maxAgeYears) {
 				j.Status = "rejected"
+				j.ErrorCode = "capture_date_out_of_range"
 				j.Updated = now
 				ageChanged = true
 				continue
@@ -396,12 +399,28 @@ func (s *Server) paint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if action == "fail" && r.Method == "POST" {
+		var failure struct {
+			Code string `json:"error_code"`
+		}
+		if r.ContentLength != 0 {
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&failure); err != nil && err != io.EOF {
+				http.Error(w, "invalid failure", 400)
+				return
+			}
+		}
+		switch failure.Code {
+		case "", "timeout", "network_error", "validation_error", "processing_error":
+		default:
+			http.Error(w, "invalid failure code", 400)
+			return
+		}
 		q.mu.Lock()
 		defer q.mu.Unlock()
 		for i := range q.Jobs {
 			j := &q.Jobs[i]
 			if j.ID == id && j.Status == "processing" && j.Worker == r.Header.Get("X-Worker-ID") {
 				j.Status = "failed"
+				j.ErrorCode = failure.Code
 				j.Lease = 0
 				j.Updated = time.Now().Unix()
 				if q.save() != nil {
@@ -576,6 +595,14 @@ func (q *PaintQueue) reconcile(s *Sampler) error {
 			if p, e := s.Photo(j.PhotoID); e == nil {
 				q.Sources[j.PhotoID] = p
 			}
+		}
+	}
+	for i := range q.Jobs {
+		j := &q.Jobs[i]
+		if q.maxAgeYears > 0 && (j.Status == "pending" || j.Status == "failed") && !recentTaken(q.Sources[j.PhotoID].Meta.Taken, time.Now(), q.maxAgeYears) {
+			j.Status = "rejected"
+			j.ErrorCode = "capture_date_out_of_range"
+			j.Updated = time.Now().Unix()
 		}
 	}
 	return q.save()
