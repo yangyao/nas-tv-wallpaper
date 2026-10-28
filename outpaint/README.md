@@ -126,3 +126,17 @@ python compare_flux.py --source /private/original.jpg \
 ```
 
 The source is shown with plain padding. FLUX output is shown raw; the previous SD 1.5 pipeline may include original-region compositing. Differences therefore compare the actual pipelines, not an isolated checkpoint substitution. Neither HTML nor images belong in the public repository.
+
+## Optional local softening of generated margins
+
+`soften_outpaint.py` is an offline postprocessing experiment; the worker and TV delivery do not call it automatically. It reuses existing generated output and requires no new diffusion run:
+
+```sh
+python soften_outpaint.py --source /private/original.jpg \
+  --generated /private/flux/raw.png --prepared /private/flux/input.png \
+  --output /private/flux/softened.png
+```
+
+The output is 1920×1080. Default Gaussian radius is 28 output pixels, with a 96-pixel source-edge feather and 260-pixel outward ramp. Increase `--radius` to 44 for stronger detail suppression. A Gaussian pyramid varies blur smoothly by distance from the original image boundary. The original source is restored in the centre; only its side edges are feathered. The geometry follows the benchmark's exact eight-pixel-aligned padding, including rounded portrait widths. Parameters are saved beside the image.
+
+This suppresses invented lettering and fine background detail while retaining broad colours and shapes. It is a spatial margin treatment, not depth estimation or true optical bokeh: generated extensions of a subject crossing the original frame are also softened. Do not interpret it as reconstruction of the real scene. Private sample previews remain outside the public checkout.
