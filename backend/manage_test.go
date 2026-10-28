@@ -6,6 +6,8 @@ import (
 	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -116,5 +118,24 @@ func TestDashboardMigrationExcludesOldPendingAndFailureCodePersists(t *testing.T
 	j, _ = loaded.find(fresh.ID)
 	if j.Status != "failed" || j.ErrorCode != "network_error" {
 		t.Fatal("failure reason not persisted")
+	}
+}
+
+func TestManagementStagedPreviewIsLANOnlyAndSeparate(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "previews"), 0700)
+	os.WriteFile(filepath.Join(dir, "previews", "index.html"), []byte("<h1>Preview</h1>"), 0600)
+	s := &Server{cache: filepath.Join(dir, "images"), token: "private-token"}
+	if w := managementRequest(s, "GET", "/manage/preview/", "", "192.168.1.20:1234"); w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+	if w := managementRequest(s, "GET", "/manage/preview/", "", "203.0.113.20:1234"); w.Code != 403 {
+		t.Fatal(w.Code)
+	}
+	if w := managementRequest(s, "GET", "/manage/preview/server.env", "", "192.168.1.20:1234"); w.Code != 404 {
+		t.Fatal(w.Code)
+	}
+	if w := managementRequest(s, "POST", "/manage/preview/", "", "192.168.1.20:1234"); w.Code != 401 {
+		t.Fatal(w.Code)
 	}
 }

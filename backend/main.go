@@ -46,6 +46,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/manage/api/overview", s.managementOverview)
 	mux.HandleFunc("/manage/api/images/", s.managementImage)
 	mux.HandleFunc("/manage/thumbs/", s.managementThumbnail)
+	mux.HandleFunc("/manage/preview/", s.managementPreview)
 	mux.HandleFunc("/v1/batch", s.batch)
 	mux.HandleFunc("/v2/wallpapers/latest", s.publishedLatest)
 	mux.HandleFunc("/v2/wallpapers/assets/", s.publishedAsset)

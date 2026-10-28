@@ -66,7 +66,7 @@ func managementLAN(r *http.Request) bool {
 	return ip != nil && (ip.IsPrivate() || ip.IsLoopback())
 }
 func (s *Server) managementReadAllowed(r *http.Request) bool {
-	return managementLAN(r) && (r.Method == "GET" || r.Method == "HEAD") && (strings.HasPrefix(r.URL.Path, "/manage/api/") || strings.HasPrefix(r.URL.Path, "/manage/thumbs/"))
+	return managementLAN(r) && (r.Method == "GET" || r.Method == "HEAD") && (strings.HasPrefix(r.URL.Path, "/manage/api/") || strings.HasPrefix(r.URL.Path, "/manage/thumbs/") || strings.HasPrefix(r.URL.Path, "/manage/preview/"))
 }
 
 type managementBatch struct {
@@ -291,4 +291,37 @@ func (s *Server) managementImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.servePublishedAsset(w, r, a)
+}
+
+// Private, manually staged preview files are separate from published TV batches.
+func (s *Server) managementPreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" && r.Method != "HEAD" {
+		http.Error(w, "read only", 405)
+		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/manage/preview/")
+	if name == "" {
+		name = "index.html"
+	}
+	switch name {
+	case "index.html", "before.jpg", "after.jpg":
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	f, err := os.Open(filepath.Join(filepath.Dir(s.cache), "previews", name))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() || st.Size() > 5<<20 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	http.ServeContent(w, r, name, st.ModTime(), f)
 }
