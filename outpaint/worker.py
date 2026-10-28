@@ -6,7 +6,7 @@ import subprocess
 import re
 import requests
 from PIL import Image, ImageFilter, ImageOps, ImageDraw
-from people_guard import NewPeopleDetected
+from people_guard import NewPeopleDetected, NoSourcePerson
 
 Image.MAX_IMAGE_PIXELS = 40_000_000
 VERSION = "sd15-inpaint-896-v3"
@@ -270,7 +270,9 @@ class Worker:
                         "jobs/" + job["id"] + "/fail",
                         headers={"X-Worker-ID": self.identity},
                         json={
-                            "error_code": "unwanted_people"
+                            "error_code": "no_source_person"
+                            if isinstance(error, NoSourcePerson)
+                            else "unwanted_people"
                             if isinstance(error, NewPeopleDetected)
                             else "timeout"
                             if isinstance(error, TimeoutError)

@@ -13,6 +13,7 @@
   "soften_ramp": 260,
   "auto_approve": false,
   "people_guard": false,
+  "require_source_person": false,
   "people_detector": "~/.local/share/nas-tv-wallpaper/outpaint/people-boxes",
   "worker_id": "mac-worker",
   "work_dir": "~/.local/share/nas-tv-wallpaper/flux-results",

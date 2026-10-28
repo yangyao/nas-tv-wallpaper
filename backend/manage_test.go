@@ -140,30 +140,34 @@ func TestManagementStagedPreviewIsLANOnlyAndSeparate(t *testing.T) {
 	}
 }
 
-func TestUnwantedPeoplePermanentlyRejectsHeldTask(t *testing.T) {
-	q, _ := newPaintQueue(t.TempDir(), false, true)
-	j, _ := q.enqueue(Photo{ID: strings.Repeat("b", 32), Meta: PhotoMeta{Width: 300, Height: 400, Taken: "2025:01:01 00:00:00"}}, "light", "")
-	s := &Server{outpaint: q, token: "test-token"}
-	call := func(path, body string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest("POST", path, strings.NewReader(body))
-		r.Header.Set("Authorization", "Bearer "+s.token)
-		r.Header.Set("X-Worker-ID", "worker")
-		w := httptest.NewRecorder()
-		s.handler().ServeHTTP(w, r)
-		return w
-	}
-	if call("/v1/outpaint/claim", `{"worker":"worker","workflow":"light"}`).Code != 200 {
-		t.Fatal("claim failed")
-	}
-	if call("/v1/outpaint/jobs/"+j.ID+"/fail", `{"error_code":"unwanted_people"}`).Code != 200 {
-		t.Fatal("rejection failed")
-	}
-	loaded, _ := newPaintQueue(q.dir, false, true)
-	j, _ = loaded.find(j.ID)
-	if j.Status != "rejected" || j.ErrorCode != "unwanted_people" {
-		t.Fatal("rejection not durable")
-	}
-	if call("/v1/outpaint/claim", `{"worker":"worker","workflow":"light"}`).Code != 204 {
-		t.Fatal("rejected photo was claimed again")
+func TestQualityPolicyPermanentlyRejectsHeldTask(t *testing.T) {
+	for _, code := range []string{"unwanted_people", "no_source_person"} {
+		t.Run(code, func(t *testing.T) {
+			q, _ := newPaintQueue(t.TempDir(), false, true)
+			j, _ := q.enqueue(Photo{ID: strings.Repeat("b", 32), Meta: PhotoMeta{Width: 300, Height: 400, Taken: "2025:01:01 00:00:00"}}, "light", "")
+			s := &Server{outpaint: q, token: "test-token"}
+			call := func(path, body string) *httptest.ResponseRecorder {
+				r := httptest.NewRequest("POST", path, strings.NewReader(body))
+				r.Header.Set("Authorization", "Bearer "+s.token)
+				r.Header.Set("X-Worker-ID", "worker")
+				w := httptest.NewRecorder()
+				s.handler().ServeHTTP(w, r)
+				return w
+			}
+			if call("/v1/outpaint/claim", `{"worker":"worker","workflow":"light"}`).Code != 200 {
+				t.Fatal("claim failed")
+			}
+			if call("/v1/outpaint/jobs/"+j.ID+"/fail", `{"error_code":"`+code+`"}`).Code != 200 {
+				t.Fatal("rejection failed")
+			}
+			loaded, _ := newPaintQueue(q.dir, false, true)
+			j, _ = loaded.find(j.ID)
+			if j.Status != "rejected" || j.ErrorCode != code {
+				t.Fatal("rejection not durable")
+			}
+			if call("/v1/outpaint/claim", `{"worker":"worker","workflow":"light"}`).Code != 204 {
+				t.Fatal("rejected photo was claimed again")
+			}
+		})
 	}
 }

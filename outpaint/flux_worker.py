@@ -11,7 +11,7 @@ from PIL import Image, ImageOps
 from worker import Worker, atomic_json
 from benchmark_flux import workflow, execution_seconds
 from soften_outpaint import soften
-from people_guard import check_result, NewPeopleDetected
+from people_guard import check_result, check_source, NewPeopleDetected, NoSourcePerson
 
 VERSION = "flux-fill-light-v1"
 DEFAULT_PROMPT = "Extend the photograph naturally, maintaining the existing surroundings, lighting, perspective and colors. A coherent, unobtrusive continuation of the environment."
@@ -75,7 +75,8 @@ class FluxWorker(Worker):
         if queue["queue_running"] or queue["queue_pending"]:
             print("ComfyUI busy; skipping this interval", flush=True)
             return
-        if self.c.get("auto_approve", False) and not self.c.get("people_guard", False):
+        if (self.c.get("auto_approve", False) and not self.c.get("people_guard", False)
+                and not self.c.get("require_source_person", False)):
             # Retry a decision if the image upload succeeded but its decision request failed.
             for job in self.nas("GET", "jobs").json()["jobs"]:
                 if (
@@ -100,12 +101,6 @@ class FluxWorker(Worker):
         start = time.monotonic()
         folder = self.directory / ident
         folder.mkdir(exist_ok=True, mode=0o700)
-        if (folder / "result.jpg").exists():
-            with Image.open(folder / "result.jpg") as result:
-                if result.size != (1920, 1080):
-                    raise ValueError("invalid cached result")
-            self.publish(job, folder)
-            return
         source_path = folder / "original.jpg"
         if not source_path.exists():
             data = self.nas("GET", "jobs/" + ident + "/input").content
@@ -117,6 +112,13 @@ class FluxWorker(Worker):
                 )
         with Image.open(source_path) as im:
             source = ImageOps.exif_transpose(im).convert("RGB")
+        self.guard_source(folder)
+        if (folder / "result.jpg").exists():
+            with Image.open(folder / "result.jpg") as result:
+                if result.size != (1920, 1080):
+                    raise ValueError("invalid cached result")
+            self.publish(job, folder)
+            return
         if source.width > source.height:
             raise ValueError("source is no longer portrait")
         width = max(8, round(source.width * 576 / source.height / 8) * 8)
@@ -261,7 +263,19 @@ class FluxWorker(Worker):
             flush=True,
         )
 
+    def guard_source(self, folder):
+        if not self.c.get("require_source_person", False):
+            return
+        helper = self.c.get("people_detector")
+        if not helper:
+            raise ValueError("people detector must be configured")
+        report = check_source(folder / "original.jpg", helper)
+        atomic_json(folder / "source-people-check.json", report)
+        if not report["passed"]:
+            raise NoSourcePerson("no person detected in original photo")
+
     def publish(self, job, folder):
+        self.guard_source(folder)
         if self.c.get("people_guard", False):
             helper = self.c.get("people_detector")
             if not helper:

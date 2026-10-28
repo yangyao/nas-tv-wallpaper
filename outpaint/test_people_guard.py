@@ -1,5 +1,11 @@
 import unittest
-from people_guard import outside_subject
+from people_guard import outside_subject, check_source
+from unittest.mock import patch
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+import json
+from PIL import Image
 
 
 class PeopleGuardTests(unittest.TestCase):
@@ -26,3 +32,15 @@ class PeopleGuardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             outside_subject(dict(kind="face", confidence=0.9,
                                  box=[float("nan"), 0, 0.1, 0.1]), 0.29, 0.71)
+
+
+class SourcePresenceTests(unittest.TestCase):
+    def test_original_back_view_is_allowed_and_empty_landscape_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "source.jpg"
+            Image.new("RGB", (300, 400)).save(path)
+            for detections, expected in [([], False),
+                ([dict(kind="person", confidence=0.7, box=[0.2, 0.2, 0.5, 0.7])], True)]:
+                with patch("people_guard.subprocess.run", return_value=SimpleNamespace(
+                    stdout=json.dumps(detections).encode())):
+                    self.assertEqual(check_source(path, "helper")["passed"], expected)

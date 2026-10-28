@@ -5,12 +5,16 @@ import math
 import pathlib
 import subprocess
 import tempfile
-from PIL import Image
+from PIL import Image, ImageOps
 
 VERSION = "margin-large-face-v2"
 
 
 class NewPeopleDetected(Exception):
+    pass
+
+
+class NoSourcePerson(Exception):
     pass
 
 
@@ -79,3 +83,22 @@ def check_result(folder, helper):
         reports[name] = inspect_image(folder / name, helper, left/1024, (left+width)/1024)
     return {"version": VERSION, "passed": all(r["passed"] for r in reports.values()),
             "images": reports}
+
+
+def check_source(path, helper):
+    """Check original pixels only, before spending GPU time on outpainting."""
+    with Image.open(path) as im, tempfile.TemporaryDirectory(prefix="source-check-") as tmp:
+        prepared = pathlib.Path(tmp) / "source.png"
+        ImageOps.exif_transpose(im).convert("RGB").save(prepared)
+        reply = subprocess.run([str(pathlib.Path(helper).expanduser()), str(prepared)],
+                               capture_output=True, check=True, timeout=45)
+        if len(reply.stdout) > 256 * 1024:
+            raise ValueError("detector response too large")
+        items = json.loads(reply.stdout)
+        if not isinstance(items, list) or len(items) > 100:
+            raise ValueError("invalid detector response")
+        for item in items:
+            outside_subject(item, 0, 1)  # Validate every result, including low confidence.
+        present = any(float(item["confidence"]) >=
+                      (0.25 if item["kind"] == "face" else 0.35) for item in items)
+        return {"version": "source-person-v1", "passed": present, "detections": items}

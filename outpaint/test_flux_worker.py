@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PIL import Image
 from flux_worker import FluxWorker, DEFAULT_PROMPT
 from soften_outpaint import soften
-from people_guard import NewPeopleDetected
+from people_guard import NewPeopleDetected, NoSourcePerson
 
 
 class Response:
@@ -67,6 +67,19 @@ class Http:
 
 
 class FluxWorkerTests(unittest.TestCase):
+    def test_empty_source_is_skipped_before_generation_or_cached_upload(self):
+        for cached in (False, True):
+            with tempfile.TemporaryDirectory() as directory:
+                w, job, folder, calls = self.setup_worker(
+                    directory, require_source_person=True, people_detector="detector"
+                )
+                if cached:
+                    Image.new("RGB", (1920, 1080)).save(folder / "result.jpg")
+                with patch("flux_worker.check_source", return_value={"passed": False}):
+                    with self.assertRaises(NoSourcePerson):
+                        w.process(job)
+                self.assertEqual(calls, [])
+
     def test_cached_result_cannot_bypass_people_guard(self):
         with tempfile.TemporaryDirectory() as directory:
             w, job, folder, calls = self.setup_worker(
