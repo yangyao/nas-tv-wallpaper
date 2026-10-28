@@ -231,6 +231,9 @@ class Worker:
             flush=True,
         )
 
+    def held_job(self):
+        return None
+
     def run(self, count):
         statefile = self.directory / "state.json"
         state = json.loads(statefile.read_text()) if statefile.exists() else {}
@@ -238,18 +241,19 @@ class Worker:
         if state.get("day") != day:
             state = {"day": day, "completed": 0, "attempted": 0}
         for _ in range(count):
-            if state.get("attempted", 0) >= self.c.get("max_per_day", 6):
-                break
-            reply = self.nas(
-                "POST",
-                "claim",
-                json={"worker": self.identity, "workflow": self.workflow},
-            )
-            if reply.status_code == 204:
-                break
-            job = reply.json()
-            state["attempted"] = state.get("attempted", 0) + 1
-            atomic_json(statefile, state)
+            job = self.held_job()
+            if job is None:
+                if state.get("attempted", 0) >= self.c.get("max_per_day", 6):
+                    break
+                reply = self.nas(
+                    "POST", "claim",
+                    json={"worker": self.identity, "workflow": self.workflow},
+                )
+                if reply.status_code == 204:
+                    break
+                job = reply.json()
+                state["attempted"] = state.get("attempted", 0) + 1
+                atomic_json(statefile, state)
             try:
                 self.process(job)
                 state["completed"] = state.get("completed", 0) + 1

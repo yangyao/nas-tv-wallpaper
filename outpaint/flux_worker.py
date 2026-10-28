@@ -68,13 +68,31 @@ class FluxWorker(Worker):
         if not self.cache.is_file():
             raise ValueError("missing cached conditioning")
 
+    def held_job(self, prompt_ids=None):
+        jobs = self.nas("GET", "jobs").json()["jobs"]
+        for job in sorted(jobs, key=lambda j: j.get("updated", 0)):
+            if (job["status"] != "processing" or job.get("worker") != self.identity
+                    or job["workflow"] != self.workflow or job.get("lease_until", job.get("lease", 0)) <= time.time()
+                    or not re.fullmatch(r"[0-9a-f]{32}", job["id"])):
+                continue
+            saved = self.directory / job["id"] / "job.json"
+            if not saved.is_file():
+                continue
+            metadata = json.loads(saved.read_text())
+            if metadata.get("recipe") == self.recipe and (prompt_ids is None or metadata.get("prompt_id") in prompt_ids):
+                return job
+        return None
+
     def run(self, count):
         queue = self.http.get(self.comfy + "/queue", timeout=15)
         queue.raise_for_status()
         queue = queue.json()
         if queue["queue_running"] or queue["queue_pending"]:
-            print("ComfyUI busy; skipping this interval", flush=True)
-            return
+            prompt_ids = {item[1] for item in queue["queue_running"] + queue["queue_pending"]}
+            if self.held_job(prompt_ids) is None:
+                print("ComfyUI busy; skipping this interval", flush=True)
+                return
+            print("Resuming our saved in-flight generation", flush=True)
         if (self.c.get("auto_approve", False) and not self.c.get("people_guard", False)
                 and not self.c.get("require_source_person", False)):
             # Retry a decision if the image upload succeeded but its decision request failed.

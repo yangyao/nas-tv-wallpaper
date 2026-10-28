@@ -215,7 +215,7 @@ func (p *PublishedStore) refresh(q *PaintQueue, now time.Time) error {
 	}
 	next.Signature = fmt.Sprint(p.maxAgeYears) + ":" + p.workflow + ":" + hex.EncodeToString(signature.Sum(nil))
 	latest, has := p.latest()
-	if has && now.Unix() < latest.Published+int64(publishedTTL.Seconds()) {
+	if has && next.Signature == old.Signature && now.Unix() < latest.Expires {
 		return nil
 	}
 	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].LastServed < jobs[j].LastServed })

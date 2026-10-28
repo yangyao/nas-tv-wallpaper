@@ -67,6 +67,23 @@ class Http:
 
 
 class FluxWorkerTests(unittest.TestCase):
+    def test_restart_resumes_own_prompt_without_spending_another_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            w, job, folder, calls = self.setup_worker(directory)
+            job.update(status="processing", worker=w.identity, lease_until=time.time()+600)
+            (folder / "job.json").write_text(json.dumps(
+                {"recipe": w.recipe, "prompt_id": "saved"}))
+            w.nas = lambda *a, **kw: Response({"jobs": [job]})
+            self.assertIsNone(w.held_job({"unrelated"}))
+            w.http = Http(b"", "saved")
+            with patch.object(w, "process") as process, patch.object(w.http, "post"):
+                w.run(1)
+                process.assert_called_once_with(job)
+            state = json.loads((w.directory / "state.json").read_text())
+            self.assertEqual(state["attempted"], 0)
+            job["lease_until"] = time.time()-1
+            self.assertIsNone(w.held_job())
+
     def test_empty_source_is_skipped_before_generation_or_cached_upload(self):
         for cached in (False, True):
             with tempfile.TemporaryDirectory() as directory:

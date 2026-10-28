@@ -54,7 +54,7 @@ if a.worker:
         ],
         "WorkingDirectory": str(root),
         "StartInterval": max(60, a.interval),
-        "RunAtLoad": False,
+        "RunAtLoad": True,
     }
 for label, body in services.items():
     body.update(

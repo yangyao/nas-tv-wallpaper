@@ -262,7 +262,7 @@ func TestSoftExpiryWithoutDifferentReadyContentKeepsSameVersion(t *testing.T) {
 	}
 }
 
-func TestPublishedNewResultsWaitForTwoHourWindow(t *testing.T) {
+func TestPublishedNewResultsDoNotWaitForRotationWindow(t *testing.T) {
 	q, _ := newPaintQueue(t.TempDir(), false, true)
 	p, _ := newPublishedStore(t.TempDir(), "light")
 	now := time.Now()
@@ -276,14 +276,14 @@ func TestPublishedNewResultsWaitForTwoHourWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	waiting, _ := p.latest()
-	if waiting.ID != first.ID {
-		t.Fatal("new result replaced batch before refresh window")
+	if waiting.ID == first.ID || len(waiting.Photos) != 2 {
+		t.Fatal("new completed result was held behind the refresh window")
 	}
 	if err := p.refresh(q, now.Add(publishedTTL)); err != nil {
 		t.Fatal(err)
 	}
 	next, _ := p.latest()
-	if next.ID == first.ID || len(next.Photos) != 2 {
-		t.Fatal("completed results not published at refresh window")
+	if next.ID != waiting.ID || len(p.index.Batches) != 2 {
+		t.Fatal("unchanged content produced an extra publication")
 	}
 }
