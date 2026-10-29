@@ -8,9 +8,12 @@ module; NAS selection stays in the existing Go service and repository.
 
 - Back on Home enters the frame; Back in the frame exits. Home returns Home.
 - Left/right selects the previous/next **ready** photograph. Order stays stable.
+- The selection outline glides with a gentle spring-like settle; thumbnails
+  enlarge smoothly and the strip scrolls continuously as selection moves.
+  Cache replenishment preserves the current visual position.
 - Down reveals the thumbnail filmstrip; Up or OK hides it. It fades away after
   4.5 seconds without navigation. Up to seven nearby ready photos are visible.
-- OK while the strip is hidden toggles automatic playback (12 seconds per photo).
+- OK while the strip is hidden toggles automatic playback (10 seconds per photo).
   Media play/pause keys work too. Navigation restarts the playback interval.
 - No captions, counters, loading notices, spinners or error dialogs. Missing next
   photo means no movement, with no deferred navigation after the download.
