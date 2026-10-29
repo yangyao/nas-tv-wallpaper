@@ -13,6 +13,9 @@ enum FrameError: Error { case invalidResponse, oversized, invalidImage }
 actor PhotoStore {
     private let root: URL
     private let session: URLSession
+    private var staged = Set<String>()
+    private var committed = Set<String>()
+    private var latestRevision: UInt64 = 0
     init(root: URL? = nil) {
         self.root = root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("PhotoFrame", isDirectory: true)
@@ -44,13 +47,18 @@ actor PhotoStore {
         let old = saved.timeline.current
         return Timeline(ids: valid, position: old.flatMap { valid.firstIndex(of: $0) } ?? 0)
     }
-    func save(_ timeline: Timeline, server: URL) {
+    func save(_ timeline: Timeline, server: URL, revision: UInt64? = nil) {
+        let incoming = revision ?? latestRevision + 1
+        guard incoming > latestRevision else { return }
+        latestRevision = incoming
+        committed = Set(timeline.ids)
+        staged.subtract(committed)
         if let data = try? JSONEncoder().encode(SavedSession(server: server.absoluteString, timeline: timeline)) {
             let destination = root.appendingPathComponent("session.json")
             try? data.write(to: destination, options: .atomic)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
         }
-        let keep = Set(timeline.ids.map { $0 + ".jpg" })
+        let keep = Set(committed.union(staged).map { $0 + ".jpg" })
         for url in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
             if url.pathExtension == "jpg" && !keep.contains(url.lastPathComponent) { try? FileManager.default.removeItem(at: url) }
         }
@@ -66,11 +74,13 @@ actor PhotoStore {
         return Array(try JSONDecoder().decode(PhotoBatch.self, from: data).photos.prefix(8))
     }
     func prepare(_ id: String, server: URL) async throws {
+        try Task.checkCancellation()
         guard let destination = file(id) else { throw FrameError.invalidResponse }
-        if FileManager.default.fileExists(atPath: destination.path) { return }
+        if FileManager.default.fileExists(atPath: destination.path) { staged.insert(id); return }
         let url = server.appendingPathComponent("frame/photos").appendingPathComponent(id)
         let (temporary, response) = try await session.download(from: url)
         defer { try? FileManager.default.removeItem(at: temporary) }
+        try Task.checkCancellation()
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw FrameError.invalidResponse }
         let size = try temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max
         guard size <= 40 * 1024 * 1024 else { throw FrameError.oversized }
@@ -98,18 +108,31 @@ actor PhotoStore {
             if bytes.length <= 2 * 1024 * 1024 {
                 try (bytes as Data).write(to: destination, options: .atomic)
                 try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+                staged.insert(id)
                 return
             }
         }
         throw FrameError.oversized
     }
     func image(_ id: String, edge: Int) -> CGImage? {
-        guard let url = file(id), let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        guard let url = file(id), FileManager.default.fileExists(atPath: url.path),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return CGImageSourceCreateThumbnailAtIndex(source, 0, [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceThumbnailMaxPixelSize: edge,
             kCGImageSourceShouldCacheImmediately: true
         ] as CFDictionary)
+    }
+    func discardPrepared(_ id: String) {
+        staged.remove(id)
+        if !committed.contains(id), let url = file(id) { try? FileManager.default.removeItem(at: url) }
+    }
+    func invalidate(_ id: String) {
+        staged.remove(id)
+        if let url = file(id) { try? FileManager.default.removeItem(at: url) }
+    }
+    func missingCount(_ ids: [String]) -> Int {
+        ids.filter { id in file(id).map { !FileManager.default.fileExists(atPath: $0.path) } ?? true }.count
     }
 }
 

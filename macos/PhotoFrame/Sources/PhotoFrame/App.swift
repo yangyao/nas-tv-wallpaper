@@ -48,12 +48,14 @@ import SwiftUI
         frameWindow?.makeKeyAndOrderFront(nil); return true
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationWillTerminate(_ notification: Notification) { model.stop() }
     private func makeMenu() {
         let menu = NSMenu()
         let app = NSMenuItem(); menu.addItem(app)
         let appMenu = NSMenu(title: "照片相框"); app.submenu = appMenu
         appMenu.addItem(withTitle: "关于照片相框", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         let settings = appMenu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ","); settings.target = self
+        let diagnostics = appMenu.addItem(withTitle: "诊断信息…", action: #selector(showDiagnostics), keyEquivalent: ""); diagnostics.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "隐藏照片相框", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "退出照片相框", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -68,6 +70,20 @@ import SwiftUI
         NSApp.mainMenu = menu
     }
     @objc private func showSettings() { model.settings = true; frameWindow?.makeKeyAndOrderFront(nil) }
+    @objc private func showDiagnostics() {
+        Task {
+            let summary = await model.diagnosticSummary()
+            let alert = NSAlert()
+            alert.messageText = "照片相框 · 诊断信息"
+            alert.informativeText = summary
+            alert.addButton(withTitle: "关闭")
+            alert.addButton(withTitle: "复制信息")
+            if alert.runModal() == .alertSecondButtonReturn {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(summary, forType: .string)
+            }
+        }
+    }
 }
 
 @main struct PhotoFrameApp {

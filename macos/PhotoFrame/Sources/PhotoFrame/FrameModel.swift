@@ -20,9 +20,18 @@ import OSLog
     private var generation = UUID()
     private var lastChange = Date()
     private var server: URL?
+    private var storeRevision: UInt64 = 0
+    private var selectionID: UUID?
+    private(set) var recoveredPhotos = 0
+    private(set) var lastNetworkError = "无"
     private let log = Logger(subsystem: "com.yangyao.photoframe", category: "photos")
 
     init(store: PhotoStore = PhotoStore()) { self.store = store }
+    func stop() {
+        generation = UUID()
+        producer?.cancel(); timer?.cancel(); selection?.cancel(); hideTask?.cancel()
+        selectionID = nil
+    }
     func start() {
         guard let url = ServerAddress.parse(address) else { settings = true; return }
         connect(url)
@@ -35,6 +44,7 @@ import OSLog
     }
     private func connect(_ url: URL) {
         producer?.cancel(); selection?.cancel(); timer?.cancel()
+        selectionID = nil
         let run = UUID(); generation = run; server = url
         timeline = Timeline(); thumbnails = [:]
         // Retain the existing photograph until the new endpoint has a decoded replacement.
@@ -51,12 +61,13 @@ import OSLog
                 if let cg { thumbnails[id] = NSImage(cgImage: cg, size: .zero) }
             }
             // Remove orphaned files left by an interrupted previous download.
-            await store.save(timeline, server: url)
+            await persist(for: run)
             while !Task.isCancelled && generation == run {
                 if timeline.ahead < 20 {
                     let excluded = [timeline.current].compactMap { $0 } + timeline.ids.filter { $0 != timeline.current }
                     do {
                         let candidates = try await store.batch(server: url, exclude: excluded)
+                        lastNetworkError = "无"
                         for candidate in candidates {
                             try Task.checkCancellation()
                             guard generation == run else { return }
@@ -64,8 +75,10 @@ import OSLog
                             do {
                                 try await store.prepare(candidate.id, server: url)
                                 let thumb = await store.image(candidate.id, edge: 240)
-                                guard !Task.isCancelled, generation == run else { return }
-                                guard let thumb else { continue }
+                                guard !Task.isCancelled, generation == run else {
+                                    await store.discardPrepared(candidate.id); return
+                                }
+                                guard let thumb else { await store.discardPrepared(candidate.id); continue }
                                 timeline.append(candidate.id).forEach { thumbnails.removeValue(forKey: $0) }
                                 thumbnails[candidate.id] = NSImage(cgImage: thumb, size: .zero)
                                 if picture == nil || pictureID != timeline.current && timeline.ids.count == 1 {
@@ -73,7 +86,7 @@ import OSLog
                                         picture = NSImage(cgImage: cg, size: .zero); pictureID = candidate.id; lastChange = Date()
                                     }
                                 }
-                                await store.save(timeline, server: url)
+                                await persist(for: run)
                             } catch {
                                 if Task.isCancelled { return }
                                 log.error("Photo preparation failed: \(String(describing: type(of: error)), privacy: .public) code \((error as NSError).code)")
@@ -81,6 +94,7 @@ import OSLog
                         }
                     } catch {
                         if Task.isCancelled { return }
+                        lastNetworkError = "网络请求错误 \((error as NSError).code)"
                         log.error("Batch unavailable: \(String(describing: type(of: error)), privacy: .public) code \((error as NSError).code)")
                     }
                 }
@@ -91,23 +105,51 @@ import OSLog
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 guard !Task.isCancelled else { return }
-                if playing && !controls && !settings && Date().timeIntervalSince(lastChange) >= 10 {
+                if playing && !controls && !settings && selectionID == nil && Date().timeIntervalSince(lastChange) >= 10 {
                     if timeline.ahead > 0 { move(1) }
                 }
             }
         }
     }
     func select(_ index: Int) {
-        guard timeline.ids.indices.contains(index), index != timeline.position, let server else { return }
+        guard timeline.ids.indices.contains(index), index != timeline.position else { return }
         let id = timeline.ids[index], run = generation
         selection?.cancel()
+        let request = UUID(); selectionID = request
         selection = Task {
-            guard let cg = await store.image(id, edge: 2560), !Task.isCancelled, generation == run,
-                  let actual = timeline.ids.firstIndex(of: id) else { return }
+            defer { if selectionID == request { selectionID = nil } }
+            let cg = await store.image(id, edge: 2560)
+            guard !Task.isCancelled, generation == run else { return }
+            guard let cg else {
+                // A missing/corrupt cache entry must not become a permanent barrier.
+                timeline.remove(id); thumbnails.removeValue(forKey: id); recoveredPhotos += 1
+                await store.invalidate(id)
+                await persist(for: run)
+                log.notice("Removed unreadable cached photo; playback can continue")
+                return
+            }
+            guard let actual = timeline.ids.firstIndex(of: id) else { return }
             timeline.select(actual)
             picture = NSImage(cgImage: cg, size: .zero); pictureID = id; lastChange = Date()
-            await store.save(timeline, server: server)
+            await persist(for: run)
         }
+    }
+    private func persist(for run: UUID) async {
+        guard generation == run, let server else { return }
+        storeRevision += 1
+        await store.save(timeline, server: server, revision: storeRevision)
+    }
+    func diagnosticSummary() async -> String {
+        let missing = await store.missingCount(timeline.ids)
+        return """
+        播放：\(playing ? "自动播放" : "已暂停")
+        控制栏：\(controls ? "显示中（暂缓自动切换）" : "已隐藏")
+        缓存：\(timeline.ids.count) 张，后续 \(timeline.ahead) 张，缺失 \(missing) 张
+        距上次切换：\(Int(max(0, Date().timeIntervalSince(lastChange)))) 秒
+        正在切换：\(selectionID == nil ? "否" : "是")
+        已跳过异常缓存：\(recoveredPhotos) 张
+        最近网络错误：\(lastNetworkError)
+        """
     }
     func move(_ delta: Int) { select(timeline.position + delta) }
     func reveal() {

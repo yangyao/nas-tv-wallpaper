@@ -69,6 +69,16 @@ account permissions apply. System sleep/locking remain unchanged.
 
 `swift test` covers bounded history, unavailable navigation without queued steps,
 endpoint validation, orphan cleanup, server separation and offline disk restore.
+Cache regression tests also cover interleaved prepare/save, stale snapshots and
+a next image disappearing after startup: automatic playback skips the bad entry
+and continues without a black frame. Prepared images stay pinned until their
+timeline commit, and obsolete snapshots cannot evict newer committed files.
+
+The application menu includes **诊断信息…**, opened only on request. It reports
+play/pause state, controls, cache counts, missing files, recovery count and a
+numeric network error, with no server address, photo IDs, photo content or token.
+Use its copy button when reporting a problem; it never opens automatically.
+
 Build the app and verify real NAS playback, keyboard navigation, fullscreen and
 continued playback while Chrome is used for development. Use synthetic photos
 for automated fixtures; never commit family photos or screenshots.

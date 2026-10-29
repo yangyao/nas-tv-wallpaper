@@ -10,6 +10,12 @@ struct Timeline: Codable {
         guard ids.indices.contains(index) else { return }
         position = index
     }
+    mutating func remove(_ id: String) {
+        guard let index = ids.firstIndex(of: id) else { return }
+        ids.remove(at: index)
+        if index < position { position -= 1 }
+        position = min(position, max(0, ids.count - 1))
+    }
 
     mutating func append(_ id: String) -> [String] {
         guard !ids.contains(id) else { return [] }
