@@ -74,6 +74,30 @@ This service and its account-free photo routes must remain on a trusted private
 network. A reverse proxy must restrict outside access itself; the backend sees
 the proxy's address. Preserve Host when proxying, including for HTTPS.
 
+## HTTPS through a LAN router
+
+A router running Lucky can terminate HTTPS while the NAS continues serving HTTP.
+Use a hostname you control and an ACME certificate validated through your DNS
+provider. Keep DNS credentials in Lucky; never store them in this repository.
+
+- Reserve an unused HTTPS port if the router already uses 443 for management.
+- Bind the listener to the router’s LAN IPv4 address only. Disable automatic
+  firewall opening and IPv6 listening unless equivalent restrictions are configured.
+- Match only the chosen hostname and proxy to the NAS HTTP service, preserving
+  the path and original Host header, including the port. The batch API checks Origin.
+- Resolve the hostname to the router’s LAN address. An exact local DNS host record
+  avoids changing global DNS rebinding protection. A public DNS-only A record can
+  also point to that private address; it does not create Internet connectivity.
+- Use `/frame/` on the HTTPS origin. Existing HTTP-origin caches do not transfer;
+  let the new origin prepare photographs before relying on offline launch.
+- Ensure any client VPN/proxy sends this hostname directly to the LAN. Global
+  proxy mode may otherwise send it to an external server that cannot reach home.
+
+Check the certificate with normal trust validation, the photo batch request with
+its matching HTTPS Origin, and the router’s actual listening address. Back up
+Lucky and DHCP configuration before editing. Preserve existing management ports,
+DDNS tasks and firewall rules. Leave certificate auto-renewal enabled.
+
 ## Development and verification
 
 ```sh
