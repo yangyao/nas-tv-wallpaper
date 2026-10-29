@@ -105,7 +105,7 @@ photo screensaver, not system sleep. No global screen timeout, dream component
 or debugging setting is changed. The existing system dream remains available
 outside the launcher.
 
-Filmstrip styling uses a lightly translucent white pane and thin white rim,
+Filmstrip styling uses a mostly opaque, pale frosted pane and thin white rim,
 without the dark outer slab, fake shadow, or opaque gray tint.
 
 Launcher 3.2-frame.4 was verified on the TV: uninterrupted Home idle entered
@@ -114,3 +114,8 @@ OK dismissed the automatic frame back to Home, while Down still opened the
 filmstrip in a manually entered frame. Countdown reset/cancel/off and ten-minute
 deadlines are covered by JVM tests; the full ten-minute wait was not repeated
 on the device. Android unit tests, lint and release build passed.
+
+Filmstrip thumbnails are fully opaque, including unselected ones, so the large
+photograph never bleeds through their pixels. Selection uses the moving rim and
+scale rather than thumbnail transparency. The pane has 70% opacity to keep the
+underlying photograph subdued without a dark slab or external shadow.

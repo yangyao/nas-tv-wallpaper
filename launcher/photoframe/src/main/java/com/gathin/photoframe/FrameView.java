@@ -89,8 +89,8 @@ final class FrameView extends View {
         float width=Math.min(getWidth()-dp(96),dp(780)),height=dp(108),bottom=getHeight()-dp(34)+(1-alpha)*dp(16);
         panel.set((getWidth()-width)/2,bottom-height,(getWidth()+width)/2,bottom);
         int layer=c.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(alpha*255));
-        // A light translucent pane: no artificial dark outer slab or shadow.
-        paint.setShader(null);paint.setColor(0x34FFFFFF);
+        // A softly frosted, mostly opaque pane keeps the photograph behind quiet.
+        paint.setShader(null);paint.setColor(0xB3E9EEF2);
         c.drawRoundRect(panel,dp(26),dp(26),paint);
         shaderMatrix.setScale(panel.width(),panel.height());shaderMatrix.postTranslate(panel.left,panel.top);sheen.setLocalMatrix(shaderMatrix);rim.setLocalMatrix(shaderMatrix);paint.setShader(sheen);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setShader(rim);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);paint.setStyle(Paint.Style.FILL);
@@ -106,7 +106,7 @@ final class FrameView extends View {
             float emphasis=Math.max(0,1-Math.abs(i-focus)),x=origin+(i-scroll)*step;
             RectF r=thumbBounds;r.set(x,panel.centerY()-th/2,x+tw,panel.centerY()+th/2);r.inset(-dp(3)*emphasis,-dp(3)*emphasis);
             if(thumb!=null&&!thumb.isRecycled()){
-                BitmapShader shader=thumbShaders.get(thumb);Matrix m=shaderMatrix;float s=Math.max(r.width()/thumb.getWidth(),r.height()/thumb.getHeight());m.setScale(s,s);m.postTranslate(r.centerX()-thumb.getWidth()*s/2,r.centerY()-thumb.getHeight()*s/2);shader.setLocalMatrix(m);paint.setShader(shader);paint.setAlpha(Math.round(200+55*emphasis));c.drawRoundRect(r,dp(10),dp(10),paint);paint.setShader(null);paint.setAlpha(255);
+                BitmapShader shader=thumbShaders.get(thumb);Matrix m=shaderMatrix;float s=Math.max(r.width()/thumb.getWidth(),r.height()/thumb.getHeight());m.setScale(s,s);m.postTranslate(r.centerX()-thumb.getWidth()*s/2,r.centerY()-thumb.getHeight()*s/2);shader.setLocalMatrix(m);paint.setShader(shader);paint.setAlpha(255);c.drawRoundRect(r,dp(10),dp(10),paint);paint.setShader(null);paint.setAlpha(255);
             }
         }
         if(slots>0){
