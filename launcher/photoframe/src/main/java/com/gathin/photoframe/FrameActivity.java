@@ -18,7 +18,7 @@ public abstract class FrameActivity extends Activity {
     protected boolean animationsEnabled(){return true;}
     private final Runnable advance=new Runnable(){public void run(){if(session!=null&&playing&&!frame.railVisible())session.move(1);handler.postDelayed(this,12000);}};
     @Override public void onCreate(Bundle state){super.onCreate(state);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);frame=new FrameView(this,animationsEnabled());setContentView(frame);frame.requestFocus();}
-    @Override protected void onStart(){super.onStart();session=new FrameSession(this,photoSource(),seedPhotos(),new FrameSession.Listener(){public void timeline(List<FrameSession.Photo> photos,int position){frame.items(photos,position);}public void image(Bitmap bitmap){frame.image(bitmap);}});handler.postDelayed(advance,12000);}
+    @Override protected void onStart(){super.onStart();session=new FrameSession(this,photoSource(),seedPhotos(),new FrameSession.Listener(){public void timeline(List<FrameSession.Photo> photos,int position){frame.items(photos,position);}public void image(Bitmap bitmap,Bitmap backdrop){frame.image(bitmap,backdrop);}});handler.postDelayed(advance,12000);}
     @Override protected void onStop(){handler.removeCallbacks(advance);if(session!=null){session.close();session=null;}super.onStop();}
     @Override protected void onDestroy(){frame.release();super.onDestroy();}
     @Override public boolean onKeyDown(int key,KeyEvent event){

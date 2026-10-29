@@ -16,7 +16,7 @@ final class FrameView extends View {
     private final LinearGradient sheen=new LinearGradient(0,0,0,1,new int[]{0x32FFFFFF,0x08FFFFFF,0x08000000},null,Shader.TileMode.CLAMP);
     private final LinearGradient rim=new LinearGradient(0,0,1,1,0xA0FFFFFF,0x18FFFFFF,Shader.TileMode.CLAMP);
     private final boolean animate;
-    private Bitmap current,previous,backdrop;
+    private Bitmap current,previous,backdrop,previousBackdrop;
     private List<FrameSession.Photo> photos=Collections.emptyList();
     private int position;
     private long changed,railChanged;
@@ -27,16 +27,19 @@ final class FrameView extends View {
     FrameView(Context c,boolean animate){super(c);this.animate=animate;setFocusable(true);setContentDescription("照片");}
     boolean railVisible(){return rail;}
     void items(List<FrameSession.Photo> items,int selected){photos=items;position=selected;Set<Bitmap> keep=Collections.newSetFromMap(new IdentityHashMap<>());for(FrameSession.Photo p:items){if(p.thumb!=null){keep.add(p.thumb);if(!thumbShaders.containsKey(p.thumb))thumbShaders.put(p.thumb,new BitmapShader(p.thumb,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP));}}thumbShaders.keySet().retainAll(keep);invalidate();}
-    void image(Bitmap bitmap){
-        if(previous!=null)previous.recycle();previous=current;current=bitmap;changed=SystemClock.uptimeMillis();
-        if(backdrop!=null)backdrop.recycle();backdrop=Bitmap.createBitmap(32,24,Bitmap.Config.ARGB_8888);
-        Canvas background=new Canvas(backdrop);background.drawColor(Color.BLACK);
-        float vw=Math.max(1,getWidth()),vh=Math.max(1,getHeight()),scale=Math.min(vw/bitmap.getWidth(),vh/bitmap.getHeight());
-        float bw=bitmap.getWidth()*scale,bh=bitmap.getHeight()*scale;
-        background.drawBitmap(bitmap,null,new RectF((vw-bw)*16/vw,(vh-bh)*12/vh,(vw+bw)*16/vw,(vh+bh)*12/vh),paint);
-        int[] pixels=new int[32*24];backdrop.getPixels(pixels,0,32,0,0,32,24);
-        for(int pass=0;pass<3;pass++){int[] out=pixels.clone();for(int y=0;y<24;y++)for(int x=0;x<32;x++){int r=0,g=0,b=0,n=0;for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++){int xx=Math.max(0,Math.min(31,x+dx)),yy=Math.max(0,Math.min(23,y+dy)),p=pixels[yy*32+xx];r+=Color.red(p);g+=Color.green(p);b+=Color.blue(p);n++;}out[y*32+x]=Color.rgb(r/n,g/n,b/n);}pixels=out;}
-        backdrop.setPixels(pixels,0,32,0,0,32,24);backdropShader=new BitmapShader(backdrop,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);invalidate();
+    void image(Bitmap bitmap,Bitmap background){
+        if(previous!=null)previous.recycle();
+        if(previousBackdrop!=null)previousBackdrop.recycle();
+        previous=current;previousBackdrop=backdrop;
+        current=bitmap;backdrop=background;changed=SystemClock.uptimeMillis();
+        backdropShader=new BitmapShader(backdrop,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);
+        invalidate();
+    }
+    private void scene(Canvas canvas,Bitmap photograph,Bitmap background){
+        paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setAlpha(255);
+        bounds.set(0,0,getWidth(),getHeight());
+        if(background!=null)canvas.drawBitmap(background,null,bounds,paint);
+        photo(canvas,photograph,255);
     }
     void rail(boolean visible){railFrom=railAlpha();railTarget=visible?1:0;railChanged=SystemClock.uptimeMillis();rail=visible;removeCallbacks(hide);if(visible)postDelayed(hide,4500);invalidate();}
     private float railAlpha(){float t=animate?Math.min(1,(SystemClock.uptimeMillis()-railChanged)/220f):1;t=1-(1-t)*(1-t);return railFrom+(railTarget-railFrom)*t;}
@@ -44,14 +47,22 @@ final class FrameView extends View {
     private void photo(Canvas c,Bitmap b,int alpha){if(b==null||b.isRecycled())return;float scale=Math.min((float)getWidth()/b.getWidth(),(float)getHeight()/b.getHeight());float w=b.getWidth()*scale,h=b.getHeight()*scale;bounds.set((getWidth()-w)/2,(getHeight()-h)/2,(getWidth()+w)/2,(getHeight()+h)/2);paint.setAlpha(alpha);c.drawBitmap(b,null,bounds,paint);paint.setAlpha(255);}
     @Override protected void onDraw(Canvas c){
         super.onDraw(c);if(current==null)return;
-        c.drawColor(Color.BLACK);float t=animate&&previous!=null?Math.min(1,(SystemClock.uptimeMillis()-changed)/320f):1;photo(c,previous,Math.round(255*(1-t)));photo(c,current,Math.round(255*t));
-        if(t<1)postInvalidateOnAnimation();else if(previous!=null){previous.recycle();previous=null;}
+        float t=animate&&previous!=null?Math.min(1,(SystemClock.uptimeMillis()-changed)/320f):1;
+        if(t<1){
+            scene(c,previous,previousBackdrop);
+            int transition=c.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*t));
+            scene(c,current,backdrop);c.restoreToCount(transition);postInvalidateOnAnimation();
+        }else{
+            scene(c,current,backdrop);
+            if(previous!=null){previous.recycle();previous=null;}
+            if(previousBackdrop!=null){previousBackdrop.recycle();previousBackdrop=null;}
+        }
         float alpha=railAlpha();if(alpha<=0)return;
         float width=Math.min(getWidth()-dp(96),dp(780)),height=dp(108),bottom=getHeight()-dp(34)+(1-alpha)*dp(16);
         panel.set((getWidth()-width)/2,bottom-height,(getWidth()+width)/2,bottom);
         int layer=c.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(alpha*255));
         paint.setColor(0x30000000);paint.setShader(null);shadowBounds.set(panel.left-dp(6),panel.top-dp(2),panel.right+dp(6),panel.bottom+dp(10));c.drawRoundRect(shadowBounds,dp(30),dp(30),paint);
-        if(backdrop!=null){shaderMatrix.setScale(getWidth()/32f,getHeight()/24f);backdropShader.setLocalMatrix(shaderMatrix);paint.setShader(backdropShader);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);}
+        if(backdrop!=null){shaderMatrix.setScale((float)getWidth()/backdrop.getWidth(),(float)getHeight()/backdrop.getHeight());backdropShader.setLocalMatrix(shaderMatrix);paint.setShader(backdropShader);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);}
         paint.setColor(0x99212A35);c.drawRoundRect(panel,dp(26),dp(26),paint);
         shaderMatrix.setScale(panel.width(),panel.height());shaderMatrix.postTranslate(panel.left,panel.top);sheen.setLocalMatrix(shaderMatrix);rim.setLocalMatrix(shaderMatrix);paint.setShader(sheen);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setShader(rim);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);paint.setStyle(Paint.Style.FILL);
@@ -68,5 +79,5 @@ final class FrameView extends View {
         }
         c.restoreToCount(layer);if(Math.abs(alpha-railTarget)>.001f)postInvalidateOnAnimation();
     }
-    void release(){removeCallbacks(hide);if(current!=null)current.recycle();if(previous!=null)previous.recycle();if(backdrop!=null)backdrop.recycle();current=previous=backdrop=null;backdropShader=null;thumbShaders.clear();photos=Collections.emptyList();}
+    void release(){removeCallbacks(hide);if(current!=null)current.recycle();if(previous!=null)previous.recycle();if(backdrop!=null)backdrop.recycle();if(previousBackdrop!=null)previousBackdrop.recycle();current=previous=backdrop=previousBackdrop=null;backdropShader=null;thumbShaders.clear();photos=Collections.emptyList();}
 }

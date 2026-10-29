@@ -14,7 +14,11 @@ module; NAS selection stays in the existing Go service and repository.
   Media play/pause keys work too. Navigation restarts the playback interval.
 - No captions, counters, loading notices, spinners or error dialogs. Missing next
   photo means no movement, with no deferred navigation after the download.
-- Originals fit the display without cropping. Only filmstrip thumbnails crop.
+- Originals fit the display without cropping. The surrounding area uses a
+  center-cropped copy of the same image, softly blurred, desaturated and darkened.
+  This transient 128×72 texture is prepared on the display decoder thread; no AI,
+  extra network requests or persistent image files are involved. Foreground and
+  background crossfade together. Only the backdrop and filmstrip thumbnails crop.
 - The glass uses photograph colour, a small preblurred backdrop, translucent tint,
   rim light and a white selection outline. It avoids expensive live full-screen
   blur and respects the launcher's animation/reduced-motion preferences.

@@ -27,7 +27,7 @@ final class FrameSession {
         @Override public boolean equals(Object other){return other instanceof Photo&&id.equals(((Photo)other).id);}
         @Override public int hashCode(){return id.hashCode();}
     }
-    interface Listener { void timeline(List<Photo> photos,int position); void image(Bitmap bitmap); }
+    interface Listener { void timeline(List<Photo> photos,int position); void image(Bitmap bitmap,Bitmap backdrop); }
     private static final class Candidate {
         final String id,path; final int orientation;
         Candidate(String id,String path,int orientation){this.id=id;this.path=path;this.orientation=orientation;}
@@ -90,11 +90,12 @@ final class FrameSession {
         moving=true;int generation=++ticket;
         decoder.execute(()->{
             Bitmap bitmap=BitmapFactory.decodeFile(p.file.getPath());
+            Bitmap backdrop=bitmap==null?null:PhotoBackdrop.create(bitmap);
             main.post(()->{
-                if(!active||generation!=ticket){if(bitmap!=null)bitmap.recycle();return;}
+                if(!active||generation!=ticket){if(bitmap!=null)bitmap.recycle();if(backdrop!=null)backdrop.recycle();return;}
                 moving=false;
                 if(bitmap!=null){int resolved=-1;List<Photo> now=timeline.snapshot();for(int i=0;i<now.size();i++)if(now.get(i)==p){resolved=i;break;}
-                    if(resolved>=0){timeline.select(resolved);listener.image(bitmap);notifyTimeline();save();}else bitmap.recycle();}
+                    if(resolved>=0){timeline.select(resolved);listener.image(bitmap,backdrop);notifyTimeline();save();}else {bitmap.recycle();if(backdrop!=null)backdrop.recycle();}}
                 pump();
             });
         });
