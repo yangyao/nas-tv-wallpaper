@@ -1,6 +1,6 @@
 # 界面截图与风景照片
 
-本目录为原生 Mac 相框和网页版的实际运行截图，使用独立的风景演示数据。未使用家庭照片、个人图库或私人服务配置；演示实例与日常相框分开运行。
+本目录包含电视桌面、原生 Mac 相框和网页版的实际运行截图，使用风景演示素材。未使用家庭照片、个人图库或私人服务配置；演示实例与日常相框分开运行。
 
 截图中的照片来自仓库已有的 `themes/nature-calm/wallpapers/`，原始出处及授权完整保留在[风景主题的素材说明](../../themes/nature-calm/CREDITS.md)。
 
@@ -15,9 +15,9 @@
 | [Lierneux 苔藓森林](https://commons.wikimedia.org/wiki/File:Mossy_forest_in_Lierneux_(DSC01260).jpg) | Trougnouf | CC BY 4.0 |
 | [泰国 Cheow Lan 湖](https://commons.wikimedia.org/wiki/File:Cheow_Lan_Lake,_Rainforest,_Khao_Sok,_Thailand.jpg) | Vyacheslav Argenberg | CC BY 4.0 |
 
-主题中的照片已做过裁切、缩放和局部压暗。本次由应用继续缩放显示、生成缩略图和柔和背景，并叠加实际界面控件；没有进行 AI 扩图。
+主题中的照片已做过裁切、缩放和局部压暗。Mac 相框和网页截图由应用继续缩放显示、生成缩略图和柔和背景，并叠加实际界面控件；这两张截图的照片没有进行 AI 扩图。
 
-本目录两张截图按 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) 提供；这不改变程序代码原有的许可。原始素材同时保留各自的 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 或 CC BY-SA 4.0 许可。
+本目录的界面截图按 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) 提供；这不改变程序代码原有的许可。原始素材同时保留各自的 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 或 CC BY-SA 4.0 许可。
 
 ## 本地扩图演示
 
@@ -28,3 +28,7 @@
 - `outpaint-after.jpg`：实际生成并完成柔化的 1920 × 1080 成品。
 
 这组图片按 CC BY-SA 4.0 提供。新增景物由 AI 生成，不是原拍摄地点的真实记录。本次为独立演示任务，没有修改日常筛选条件或把演示图加入家庭照片批次。
+
+## 电视桌面截图
+
+`tv-desktop.jpg` 为电视实际运行画面的截图，使用本目录的 `outpaint-after.jpg` 作为演示背景。照片来源、裁切、AI 扩图和柔化处理同上。截图按 CC BY-SA 4.0 提供；应用图标及商标归各自权利人所有。截图后已恢复原有照片设置。
