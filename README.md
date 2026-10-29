@@ -1,146 +1,54 @@
-# NAS TV Wallpaper
+# 家庭照片相框
 
-Android TV launcher with opt-in, locally cached NAS photo wallpaper, plus a small Go photo service. Based on [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv); upstream documentation is preserved in [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md). Original MIT license and third-party notices are retained.
+让 NAS 里的家庭照片回到日常生活里：可以作为电视桌面的背景，也可以在电视或 Mac 上全屏播放，像一个安静的数码相框。
 
-## How it works
+## 简洁的电视桌面
 
-- NAS photos are **off by default**. On the TV, open the gear menu → 照片背景（NAS）, enter a private LAN URL and a generated access token, then enable.
-- The NAS returns small random batches using bounded directory reads and camera EXIF checks. No recursive archive scan or whole-library index.
-- JPEG only for now. Conservative metadata and filename filters reject many screenshots/downloads, but are not semantic photo recognition. HEIC and images lacking camera metadata are skipped.
-- Recent selections are remembered to reduce repeats; copies at different paths can still repeat.
-- Each requested photo becomes a 1920×1080 JPEG with the complete photo centred over a softened backdrop. Originals are read-only; exported metadata is stripped.
-- TV wallpaper changes every two minutes: **landscape originals display individually; portrait/square originals pair side by side**. Pairing excludes landscapes and refits the complete photo foreground over the soft backdrop. If there is no second portrait, show one complete image.
-- Layout uses EXIF-oriented original dimensions, not the padded 16:9 cache frame. Dimensions are cached locally; an authenticated HEAD request can hydrate older image caches without redownloading images or reading original JPEGs. Unknown dimensions safely use single-image display until metadata is available.
-- TV downloads only while Home is visible. After six hours, returning Home requests another batch. No scheduled wakeups or downloads during video playback.
-- The first three downloads can appear immediately. Later batches normally need at least ten completed images (or the entire shorter batch) before switching atomically. Failed requests retain the cache and retry no sooner than 30 minutes later.
-- Disabling restores normal local wallpaper. The existing clock screensaver does not use the NAS photo cache.
+桌面以时间、日期、星期和农历为主，保留常用应用和设置入口。照片在背景中轮换，不需要打开相册。
 
-NAS sampling is limited to 100 metadata candidates, 32 directory chunks of 256 entries, roughly ten seconds per batch, and two photos per selected directory. Directory windows and recent-selection state are bounded. Image conversion concurrency is one; service launch uses GOMAXPROCS=1 and a 192 MiB soft memory target. NAS image cache is approximately 200 MiB, TV cache approximately 100 MiB.
+NAS 照片背景可以随时开关，关闭后使用本地壁纸。
 
-## Optional Mac outpainting
+## 随机看照片
 
-A fixed local ComfyUI workflow and thin pull worker can precompute landscape derivatives. NAS queue/result storage are opt-in, approved results require a separate serving switch, and originals remain read-only. See [outpaint/README.md](outpaint/README.md) for setup, model provenance, review and rollback.
+不必找目录、选相册，进入相框就能开始看照片。
 
-## Prepared batch pool
+- 每 10 秒自动切换，也可以手动前后翻看、暂停播放。
+- 底部缩略图展示已经看过、正在看和接下来准备好的照片，可以直接选择。
+- 照片完整显示，竖图周围使用同一张照片的柔和背景填充。
+- 切换时平滑过渡，底部控制栏采用玻璃效果，不操作时自动隐藏。
+- 提前准备后面的照片；如果下一张还没准备好，就停留在当前照片，不黑屏、不弹提示。
+- 只缓存有限的一批照片，不把整个图库下载到设备上。
 
-With opt-in NAS integration, `NAS_PHOTO_BATCH_POOL=1` prepares ten independent batches of twenty approved photos. Bootstrap fills continuously; once full, a completed replacement atomically replaces the oldest batch after the configured two-hour interval. TV rotates prepared batches independently. The management page shows pool size and next-batch progress separately; pre-pool photos remain as a clearly labelled transition batch. See [operation and migration](docs/PUBLISHED-WALLPAPERS.md).
+电视端从桌面按返回即可进入相框，也可以设置闲置后自动进入。
 
-## Slideshow status page
+## 独立的 Mac 相框
 
-Open `http://<NAS-LAN-IP>:8791/manage` on the home network. This is a small read-only page for the TV desktop slideshow: current finished photos, available batches and task status. Details are collapsed by default. Expand a batch record to view its photos and click a thumbnail for a full-size preview. Galleries load when expanded, and open batches stay expanded during the visible page’s 30-second refresh.
+Mac 版是原生应用，可以从应用列表直接打开，放到另一块屏幕上全屏播放。
 
-The page needs no login. It accepts only direct private-network or loopback peers; forwarded headers do not grant access. TV and worker APIs still require their existing Bearer token, including all mutations. Do not expose this service through an internet-facing proxy. The page does not expose source paths or credentials, and its bounded thumbnail cache does not scan the archive.
+它独立于浏览器运行。日常开发、浏览网页或调试 Chrome，不会在相框里出现浏览器的调试横幅。切换到其他应用时，照片继续播放。
 
-## Repository
+支持键盘切换、暂停和全屏，会记住窗口位置及已准备的照片。网络暂时不可用时，仍可播放本地缓存。
 
-- `backend/`: Go standard-library photo server; Go 1.20+.
-- `launcher/`: Android TV launcher and photo cache; JDK 17, Android SDK 34.
-- `deploy/`: standalone/QNAP service scripts, example configuration and packaging.
-- Other folders are inherited CleanYourTV tools, examples and add-ons; see upstream docs for their usage.
+也保留了网页版，方便在家中浏览器里直接观看。
 
-## Standalone NAS service
+## 为电视背景提前准备照片
 
-Build on a computer with Go (change GOARCH for your NAS):
+除了直接看原始照片，还可以启用本地 AI 扩图，为电视背景准备适合横屏的照片。
 
-```sh
-cd backend
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o nas-photos .
-```
+- NAS 挑选照片，Mac 在后台处理，完成后再交给电视。
+- 可以按最近十年的拍摄日期筛选，并筛选有人物的照片。
+- 对扩图结果做人脸检查，尽量排除新增明显人脸等不适合展示的结果。
+- 预先储备 10 批成品，首次逐步补满；之后定期补充新批次，再替换旧批次。
+- 电视使用已经处理完成的照片，无需等待现场生成。
 
-As a non-root NAS user with read access to the photo share, prepare a runtime directory:
+扩图可以关闭，原始照片不会被修改。随机相框与这套成品背景独立，不需要为整个图库做 AI 处理。
 
-```sh
-mkdir -p "$HOME/.local/share/nas-tv-wallpaper/bin"
-chmod 700 "$HOME/.local/share/nas-tv-wallpaper"
-```
+## 简单的管理页面
 
-Copy the binary into `bin/`, `deploy/nas-service.sh` into the runtime directory, and `deploy/server.env.example` as `server.env`. Edit `server.env` to set:
+在家中网络打开管理页面，可以查看已有成品、批次数量和处理进度。展开某个批次，就能看到其中的照片，并打开大图预览。
 
-```sh
-NAS_PHOTO_TOKEN='REPLACE_WITH_A_RANDOM_TOKEN'
-NAS_PHOTO_ROOT='/share/Photos'
-NAS_PHOTO_LISTEN='192.168.1.10:8791'
-```
+照片存放在 NAS，本地处理，不需要上传云端。服务按需抽取照片，不要求先导入整个图库或为所有照片建立缩略图库，也支持作为 QNAP 服务安装运行。目前照片播放以 JPEG 格式为主。
 
-Generate a token with `openssl rand -hex 32`. Use your actual private LAN IP, not the example. Protect `server.env` with `chmod 600`, make the service script executable, then run it with `start`, `stop` or `status`. `NAS_PHOTO_APP_DIR` overrides the runtime directory; `NAS_PHOTO_BINARY` overrides the executable. The standalone script does not configure boot startup.
+---
 
-The backend deliberately accepts only private LAN/loopback bind addresses. Photo routes require a Bearer token. This is a trusted-LAN HTTP service, not an internet-facing server: do not expose it by port forwarding. The token travels over HTTP and must not be reused elsewhere.
-
-Health check (use your address):
-
-```sh
-wget -qO- http://192.168.1.10:8791/health
-```
-
-Expected response: `{"ok":true}`. `/health` exposes no photo information. Authenticated endpoints: `POST /v1/batch` (`count` and optional `exclude` IDs), `GET /v1/photos/{id}`, and `HEAD /v1/photos/{id}`. GET/HEAD return `X-Photo-Width` and `X-Photo-Height` for the EXIF-oriented original. HEAD reads only bounded saved selection history, with no image conversion. There is no arbitrary file/path endpoint.
-
-## QNAP QPKG
-
-ARM64 packaging sources are included. Public configuration differs from earlier personal builds; no personal binaries are distributed in this repository.
-
-Before installation:
-
-1. Choose an existing **non-root** NAS user that can read your photo share. Prepare its runtime directory and private `server.env` as above. The directory and runtime files must belong to that user.
-2. Copy `deploy/qpkg/qpkg.conf.example` to `/etc/config/nas-tv-wallpaper.conf`. Edit `[Service] User` and `RuntimeDir` for your setup. Keep this file root-owned and mode 600; it is read as INI configuration, not executed as shell code.
-3. Stop any standalone photo service using the same port before starting QPKG.
-
-Build with Go, Python 3, SSH access to a QNAP NAS and an [official QDK](https://github.com/qnap-dev/QDK) 2.5.3 checkout:
-
-```sh
-QDK_SOURCE=/path/to/QDK \
-NAS=nas-user@nas-host \
-REMOTE=/share/homes/nas-user/.cache/nas-tv-wallpaper-qpkg \
-./deploy/build-qpkg.sh
-```
-
-The remote build directory must end in `/nas-tv-wallpaper-qpkg` and is disposable: its `package/` and `QDK/` subdirectories are replaced during builds. QDK is staged in that user directory, not installed into QTS. Outputs go to gitignored `dist/`. The transfer command uses macOS tar options; on other build hosts adapt those options to the installed tar.
-
-Upload the generated package to your NAS, then via an administrator SSH session install it (replace VERSION):
-
-```sh
-sudo /bin/sh /share/Public/NasTvWallpaper_VERSION_arm_64.qpkg
-```
-
-Keep **NAS TV Wallpaper** enabled in App Center for QTS-managed startup/shutdown. This is an unsigned community package; App Center may require allowing unsigned applications. The small Linux `qpkg-runner` drops to the configured user's UID/GID and supplementary groups before running service scripts. Photo processing does not run as root and needs no Go, Python, Docker or su on the installed NAS.
-
-Check registration and process ownership:
-
-```sh
-/sbin/getcfg NasTvWallpaper Enable -f /etc/config/qpkg.conf
-/sbin/getcfg NasTvWallpaper Install_Path -f /etc/config/qpkg.conf
-ps | grep '[n]as-photos'
-```
-
-App Center can start/stop/disable the package. Runtime settings and data are outside the QPKG directory and survive package updates/removal. To revert to standalone, disable QPKG first, then start your standalone script. Never run both on one port.
-
-## Android build and rollback
-
-```sh
-./launcher/gradlew -p launcher testReleaseUnitTest lintRelease assembleRelease
-```
-
-The existing build uses your local Android debug signing configuration. Keep your own signing key private and backed up. Independently built APKs may have different signatures and cannot necessarily replace another installation. This fork retains versionCode 9 for same-version local rollback; use versionName and Git tags to distinguish source versions. Before installing, preserve your own known-good APK and configuration.
-
-`deploy/launcher-control.py --tv IP:5555 on|off|refresh|status` controls the optional feature through ADB. For APK rollback, use `rollback --apk /path/to/your-backup.apk`. The provider requires shell/WRITE_SECURE_SETTINGS privileges. Do not turn off or revoke ADB access as part of feature toggling.
-
-## Validation and limits
-
-Go race tests and Android unit tests/lint/release compilation are the automated checks. The earlier personal deployment validated QNAP SSH package installation, non-root service operation, health, startup/shutdown link creation, TV cache fallback, feature disable and same-signature APK rollback. The configurable public QPKG is a subsequent implementation; installation and reboot startup need validation on the destination system. Landscape single-image display was verified on an Android TV deployment. Portrait selection and complete-foreground geometry have unit coverage; verify both layouts on the destination TV.
-
-Do not commit runtime files, tokens, photos, device dumps or signing keys. Generated packages and local backups are ignored. This project is not affiliated with QNAP, Sony, Google or Apple.
-
-The optional NAS integration now supports [published, immutable wallpaper batches](docs/PUBLISHED-WALLPAPERS.md): at most ten retained versions, complete-download switching on TV, and EXIF capture-date filtering to the most recent ten years. TV has no dependency on the AI worker and never substitutes raw photos in published mode. QNAP package 1.3.0 and TV client 3.1-nas.2 implement this protocol.
-
-### Random photo frame
-
-The launcher includes a full-screen random photo mode with a transient glass
-filmstrip. Back enters it from Home; Down reveals nearby photos; Back exits.
-It reads original JPEGs through the NAS service independently of AI wallpaper
-batches. See [controls, cache limits and upgrade notes](docs/photo-frame.md).
-
-### Mac / browser photo frame
-
-Open `/frame/` on the NAS service for a quiet, full-window photo display, with
-prepared-image transitions, fixed geometry and bounded local cache. It can be
-saved as a Safari web app and placed fullscreen on a second monitor.
-See [web frame controls, offline limits and verification](docs/web-photo-frame.md).
+电视桌面基于 [CleanYourTV](https://github.com/Gathin23/cleanyourtv) 开发，保留原有许可证及第三方声明。
