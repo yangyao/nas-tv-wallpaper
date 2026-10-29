@@ -70,3 +70,13 @@ and removes the old source's frame cache on next entry.
 Validation: Go race tests, Android JVM tests, lint and release build. Physical
 TV focus, Home interception and GPU appearance must also be checked on the target
 firmware before claiming device verification.
+
+## Deployment verification
+
+Launcher 3.2-frame.1 and backend 1.5.0 were checked together on the target
+Android TV: NAS originals populated the filmstrip, next/previous returned the
+identical image, and both Back and Home returned to the launcher. Existing AI
+published batches and worker jobs remained available after the service restart.
+The backend binary was replaced under the existing QPKG with a rollback copy;
+QNAP App Center can still display the older package installer version until a
+full QPKG upgrade. Runtime configuration and photo data were retained.
