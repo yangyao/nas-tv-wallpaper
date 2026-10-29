@@ -87,3 +87,30 @@ published batches and worker jobs remained available after the service restart.
 The backend binary was replaced under the existing QPKG with a rollback copy;
 QNAP App Center can still display the older package installer version until a
 full QPKG upgrade. Runtime configuration and photo data were retained.
+
+## Idle photo playback
+
+With NAS photos and frame mode enabled, leaving Home focused for five minutes
+starts photo playback with the controls hidden. NAS photo settings offer five
+minutes, ten minutes, or off. Every remote interaction restarts the countdown;
+opening another app, settings, or a dialog cancels it. Returning Home starts a
+fresh interval. Direction, OK, Back or Menu dismiss an automatically started
+frame without also activating the item behind it. Manual frame browsing keeps
+its existing controls. Off retains any explicitly configured legacy idle clock.
+
+Home keeps its own window awake only while this photo countdown is enabled, so
+Android's screen timeout does not pre-empt it. Photo playback also keeps its
+window awake; power-button standby remains system-controlled. This is an app
+photo screensaver, not system sleep. No global screen timeout, dream component
+or debugging setting is changed. The existing system dream remains available
+outside the launcher.
+
+Filmstrip styling uses a lightly translucent white pane and thin white rim,
+without the dark outer slab, fake shadow, or opaque gray tint.
+
+Launcher 3.2-frame.4 was verified on the TV: uninterrupted Home idle entered
+photo playback at the five-minute deadline (observed at 302 seconds by polling);
+OK dismissed the automatic frame back to Home, while Down still opened the
+filmstrip in a manually entered frame. Countdown reset/cancel/off and ten-minute
+deadlines are covered by JVM tests; the full ten-minute wait was not repeated
+on the device. Android unit tests, lint and release build passed.

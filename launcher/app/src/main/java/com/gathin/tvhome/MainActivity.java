@@ -121,7 +121,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private long settingsRevision;
     /** Idle time on Home before ClockActivity; 0 is off (config.xml, home_idle_clock_minutes). */
     private long idleClockMs;
-    private final Runnable showIdleClock = () -> startActivity(new Intent(this, ClockActivity.class));
+    private long idlePhotoMs;
+    private boolean homeResumed;
+    private final HomeIdleCountdown homeIdle=new HomeIdleCountdown();
+    private final Runnable showIdleClock = this::showIdleScreen;
     private String liveTvAction;
     private String liveTvInputId;
     /** The app library is on (config.xml, app_library): only then can the tile menu take an app off Home. */
@@ -968,6 +971,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             recreate();
             return;
         }
+        homeResumed = true;
+        NasPhotoSettings photoSettings=NasPhotoSettings.load(this);
+        int idleMinutes=NasPhotoSettings.prefs(this).getInt("frame_idle_minutes",5);
+        idleMinutes=idleMinutes==0||idleMinutes==10?idleMinutes:5;
+        idlePhotoMs=photoSettings.enabled&&NasPhotoSettings.prefs(this).getBoolean("frame_enabled",true)
+                ? idleMinutes*MINUTE_MS : 0;
+        if(idlePhotoMs>0)getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         restartIdleClock();
         promptsPaused = false;
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
@@ -1161,13 +1172,28 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void restartIdleClock() {
+        if(root==null)return;
         root.removeCallbacks(showIdleClock);
-        if (idleClockMs > 0) root.postDelayed(showIdleClock, idleClockMs);
+        long delay=idlePhotoMs>0?idlePhotoMs:idleClockMs;
+        homeIdle.restart(android.os.SystemClock.uptimeMillis(),delay,homeResumed&&hasWindowFocus());
+        long remaining=homeIdle.remaining(android.os.SystemClock.uptimeMillis());
+        if(remaining>=0)root.postDelayed(showIdleClock,remaining);
+    }
+
+    private void showIdleScreen(){
+        android.os.PowerManager power=getSystemService(android.os.PowerManager.class);
+        if(!homeResumed||!hasWindowFocus()||isFinishing()||power==null||!power.isInteractive())return;
+        if(!homeIdle.consume(android.os.SystemClock.uptimeMillis()))return;
+        if(idlePhotoMs>0)startActivity(new Intent(this,PhotoFrameActivity.class)
+                .putExtra(com.gathin.photoframe.FrameActivity.EXTRA_IDLE,true));
+        else startActivity(new Intent(this,ClockActivity.class));
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        homeResumed=false;homeIdle.cancel();
+        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         nasPhotos.pause();
@@ -1222,6 +1248,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        restartIdleClock();
         if (hasFocus) {
             startPendingSettingsReorder();
             if (libraryFocusPending && appLibrary == null) focusLibrary();

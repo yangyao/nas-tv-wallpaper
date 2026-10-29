@@ -9,6 +9,7 @@ import java.util.*;
 
 /** Internal activity hosted by Home: no extra icon or loading UI. */
 public abstract class FrameActivity extends Activity {
+    public static final String EXTRA_IDLE="com.gathin.photoframe.IDLE";
     private FrameSession session;
     private FrameView frame;
     private final Handler handler=new Handler(Looper.getMainLooper());
@@ -24,6 +25,13 @@ public abstract class FrameActivity extends Activity {
     @Override protected void onStop(){handler.removeCallbacks(advance);if(session!=null){session.close();session=null;}super.onStop();}
     @Override protected void onDestroy(){frame.release();super.onDestroy();}
     @Override public boolean onKeyDown(int key,KeyEvent event){
+        if(getIntent().getBooleanExtra(EXTRA_IDLE,false)&&
+                (key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT||
+                 key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN||
+                 key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||
+                 key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_MENU)){
+            if(event.getRepeatCount()==0)finish();return true;
+        }
         switch(key){
             case KeyEvent.KEYCODE_DPAD_LEFT:case KeyEvent.KEYCODE_DPAD_RIGHT:
                 restartPlaybackTimer();if(session!=null)session.move(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(frame.railVisible())frame.rail(true);return true;

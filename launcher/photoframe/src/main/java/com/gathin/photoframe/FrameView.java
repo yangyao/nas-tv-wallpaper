@@ -10,12 +10,11 @@ import java.util.*;
 /** Photo first; a small preblurred backdrop keeps the glass cheap on TV GPUs. */
 final class FrameView extends View {
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
-    private final RectF bounds=new RectF(),panel=new RectF(),shadowBounds=new RectF(),thumbBounds=new RectF();
+    private final RectF bounds=new RectF(),panel=new RectF(),thumbBounds=new RectF();
     private final Matrix shaderMatrix=new Matrix();
     private final Map<Bitmap,BitmapShader> thumbShaders=new IdentityHashMap<>();
-    private BitmapShader backdropShader;
-    private final LinearGradient sheen=new LinearGradient(0,0,0,1,new int[]{0x32FFFFFF,0x08FFFFFF,0x08000000},null,Shader.TileMode.CLAMP);
-    private final LinearGradient rim=new LinearGradient(0,0,1,1,0xA0FFFFFF,0x18FFFFFF,Shader.TileMode.CLAMP);
+    private final LinearGradient sheen=new LinearGradient(0,0,0,1,new int[]{0x30FFFFFF,0x10FFFFFF,0x04FFFFFF},null,Shader.TileMode.CLAMP);
+    private final LinearGradient rim=new LinearGradient(0,0,1,1,0x78FFFFFF,0x24FFFFFF,Shader.TileMode.CLAMP);
     private final boolean animate;
     private Bitmap current,previous,backdrop,previousBackdrop;
     private List<FrameSession.Photo> photos=Collections.emptyList();
@@ -62,7 +61,6 @@ final class FrameView extends View {
         if(previousBackdrop!=null)previousBackdrop.recycle();
         previous=current;previousBackdrop=backdrop;
         current=bitmap;backdrop=background;changed=SystemClock.uptimeMillis();
-        backdropShader=new BitmapShader(backdrop,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);
         invalidate();
     }
     private void scene(Canvas canvas,Bitmap photograph,Bitmap background){
@@ -91,9 +89,9 @@ final class FrameView extends View {
         float width=Math.min(getWidth()-dp(96),dp(780)),height=dp(108),bottom=getHeight()-dp(34)+(1-alpha)*dp(16);
         panel.set((getWidth()-width)/2,bottom-height,(getWidth()+width)/2,bottom);
         int layer=c.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(alpha*255));
-        paint.setColor(0x30000000);paint.setShader(null);shadowBounds.set(panel.left-dp(6),panel.top-dp(2),panel.right+dp(6),panel.bottom+dp(10));c.drawRoundRect(shadowBounds,dp(30),dp(30),paint);
-        if(backdrop!=null){shaderMatrix.setScale((float)getWidth()/backdrop.getWidth(),(float)getHeight()/backdrop.getHeight());backdropShader.setLocalMatrix(shaderMatrix);paint.setShader(backdropShader);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);}
-        paint.setColor(0x99212A35);c.drawRoundRect(panel,dp(26),dp(26),paint);
+        // A light translucent pane: no artificial dark outer slab or shadow.
+        paint.setShader(null);paint.setColor(0x24FFFFFF);
+        c.drawRoundRect(panel,dp(26),dp(26),paint);
         shaderMatrix.setScale(panel.width(),panel.height());shaderMatrix.postTranslate(panel.left,panel.top);sheen.setLocalMatrix(shaderMatrix);rim.setLocalMatrix(shaderMatrix);paint.setShader(sheen);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setShader(rim);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);paint.setStyle(Paint.Style.FILL);
         int slots=Math.min(7,photos.size());
@@ -121,5 +119,5 @@ final class FrameView extends View {
         if(motionProgress(now)<1)postInvalidateOnAnimation();
         c.restoreToCount(layer);if(Math.abs(alpha-railTarget)>.001f)postInvalidateOnAnimation();
     }
-    void release(){removeCallbacks(hide);if(current!=null)current.recycle();if(previous!=null)previous.recycle();if(backdrop!=null)backdrop.recycle();if(previousBackdrop!=null)previousBackdrop.recycle();current=previous=backdrop=previousBackdrop=null;backdropShader=null;thumbShaders.clear();photos=Collections.emptyList();}
+    void release(){removeCallbacks(hide);if(current!=null)current.recycle();if(previous!=null)previous.recycle();if(backdrop!=null)backdrop.recycle();if(previousBackdrop!=null)previousBackdrop.recycle();current=previous=backdrop=previousBackdrop=null;thumbShaders.clear();photos=Collections.emptyList();}
 }
