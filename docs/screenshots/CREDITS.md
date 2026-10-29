@@ -18,3 +18,13 @@
 主题中的照片已做过裁切、缩放和局部压暗。本次由应用继续缩放显示、生成缩略图和柔和背景，并叠加实际界面控件；没有进行 AI 扩图。
 
 本目录两张截图按 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) 提供；这不改变程序代码原有的许可。原始素材同时保留各自的 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 或 CC BY-SA 4.0 许可。
+
+## 本地扩图演示
+
+`outpaint-source.jpg`、`outpaint-before.jpg` 与 `outpaint-after.jpg` 使用上表的老挝山景（Basile Morin，CC BY-SA 4.0）。在仓库已有风景素材的基础上，居中裁成 9:16 竖幅，再通过当前的本地 FLUX Fill 工作流生成两侧背景，最后使用渐进柔化，并恢复原照片中央区域。
+
+- `outpaint-source.jpg`：竖幅输入。
+- `outpaint-before.jpg`：将竖幅输入居中放在横向画布上，两侧留空，用于对比；不是电视实际播放时的黑边截图。
+- `outpaint-after.jpg`：实际生成并完成柔化的 1920 × 1080 成品。
+
+这组图片按 CC BY-SA 4.0 提供。新增景物由 AI 生成，不是原拍摄地点的真实记录。本次为独立演示任务，没有修改日常筛选条件或把演示图加入家庭照片批次。
