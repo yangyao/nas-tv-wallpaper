@@ -161,7 +161,7 @@ func (s *Server) managementOverview(w http.ResponseWriter, r *http.Request) {
 	if poolMode {
 		ready, nextPrepare = s.published.poolProgress(now)
 	}
-	paintJSON(w, map[string]interface{}{"pool_mode": poolMode, "next_batch_ready": ready, "next_prepare_at": nextPrepare, "server_time": now.Unix(), "uptime_seconds": uptime, "version": "1.5.0", "published_mode": s.published != nil, "serving": serve, "automatic_sampling": autofill, "max_batches": publishedLimit, "batch_target_size": publishedSize, "soft_ttl_seconds": int(publishedTTL.Seconds()), "capture_years": years, "capture_cutoff": now.AddDate(-years, 0, 0).Format("2006-01-02"), "current_batch_id": currentID, "current_photos": currentPhotos, "available_batches": available, "retained_batches": len(batches), "batches": batches, "jobs": jobs, "counts": counts, "worker_last_activity": lastActivity})
+	paintJSON(w, map[string]interface{}{"pool_mode": poolMode, "next_batch_ready": ready, "next_prepare_at": nextPrepare, "server_time": now.Unix(), "uptime_seconds": uptime, "version": "1.6.1", "published_mode": s.published != nil, "serving": serve, "automatic_sampling": autofill, "max_batches": publishedLimit, "batch_target_size": publishedSize, "soft_ttl_seconds": int(publishedTTL.Seconds()), "capture_years": years, "capture_cutoff": now.AddDate(-years, 0, 0).Format("2006-01-02"), "current_batch_id": currentID, "current_photos": currentPhotos, "available_batches": available, "retained_batches": len(batches), "batches": batches, "jobs": jobs, "counts": counts, "worker_last_activity": lastActivity})
 }
 func (s *Server) managementThumbnail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" && r.Method != "HEAD" {

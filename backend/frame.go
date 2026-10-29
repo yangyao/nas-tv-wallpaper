@@ -69,6 +69,8 @@ func (s *Server) frameBatch(w http.ResponseWriter, r *http.Request) {
 		ID          string `json:"id"`
 		URL         string `json:"url"`
 		Orientation int    `json:"orientation"`
+		Width       int    `json:"width"`
+		Height      int    `json:"height"`
 	}
 	items := make([]item, 0, len(photos))
 	for _, p := range photos {
@@ -76,7 +78,7 @@ func (s *Server) frameBatch(w http.ResponseWriter, r *http.Request) {
 		if o < 1 || o > 8 {
 			o = 1
 		}
-		items = append(items, item{p.ID, "/v1/frame/photos/" + p.ID, o})
+		items = append(items, item{p.ID, "/v1/frame/photos/" + p.ID, o, p.Meta.Width, p.Meta.Height})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

@@ -1,0 +1,23 @@
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#17191b}
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{touch-action:none;background:#17191b}body.quiet{cursor:none}
+#frame,.scene{position:fixed;inset:0;width:100%;height:100%;overflow:hidden}
+.scene{pointer-events:none;opacity:0;will-change:opacity}
+.scene.current{opacity:1}
+#controls{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));left:50%;width:min(880px,calc(100% - 64px));transform:translate(-50%,16px);opacity:0;pointer-events:none;transition:opacity 200ms ease,transform 240ms ease;contain:layout style}
+#controls.visible{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.rail{height:112px;padding:16px 24px;border-radius:28px;background:rgba(233,238,242,.70);border:1px solid rgba(255,255,255,.55)}
+#viewport{position:relative;height:80px;overflow:hidden;isolation:isolate}
+#track{display:flex;gap:12px;position:absolute;left:0;top:6px;height:68px;transition:transform 360ms cubic-bezier(.2,.8,.2,1);will-change:transform}
+.thumb{position:relative;flex:0 0 92px;width:92px;height:68px;border:0;padding:0;border-radius:10px;overflow:hidden;background:#25292d;transition:transform 300ms cubic-bezier(.2,.8,.2,1);cursor:pointer}
+.thumb.current{transform:scale(1.06)}.thumb img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;opacity:1}
+#selection{position:absolute;left:0;top:1px;width:102px;height:78px;border:2px solid rgba(255,255,255,.95);border-radius:14px;pointer-events:none;transition:transform 360ms cubic-bezier(.22,1.25,.36,1);will-change:transform}
+#selection.empty{visibility:hidden}
+.actions{height:44px;margin:10px auto 0;display:flex;width:max-content;gap:4px;padding:3px 8px;border-radius:22px;background:rgba(233,238,242,.78);border:1px solid rgba(255,255,255,.5)}
+.actions button{height:36px;width:42px;border:0;border-radius:18px;background:transparent;color:#263039;display:grid;place-items:center;cursor:pointer;padding:8px}
+.actions button:hover{background:#ffffff38}.actions button:active{background:#ffffff70}
+button:focus{outline:none}button:focus-visible{outline:2px solid white;outline-offset:3px}
+svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+@media(max-width:600px){#controls{width:calc(100% - 24px);bottom:16px}.rail{padding:16px 14px;border-radius:24px}}

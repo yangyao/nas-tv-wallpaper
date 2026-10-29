@@ -49,6 +49,10 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/manage/thumbs/", s.managementThumbnail)
 	mux.HandleFunc("/manage/preview/", s.managementPreview)
 	mux.HandleFunc("/v1/batch", s.batch)
+	mux.HandleFunc("/frame", s.frameWeb)
+	mux.HandleFunc("/frame/", s.frameWeb)
+	mux.HandleFunc("/frame/api/batch", s.frameWebBatch)
+	mux.HandleFunc("/frame/photos/", s.frameWebImage)
 	mux.HandleFunc("/v1/frame/batch", s.frameBatch)
 	mux.HandleFunc("/v1/frame/photos/", s.frameImage)
 	mux.HandleFunc("/v2/wallpapers/latest", s.publishedLatest)
@@ -57,11 +61,11 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/v1/outpaint/", s.paint)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if (r.URL.Path == "/" || r.URL.Path == "/manage" || strings.HasPrefix(r.URL.Path, "/manage/")) && !managementLAN(r) {
+		if (r.URL.Path == "/" || r.URL.Path == "/manage" || strings.HasPrefix(r.URL.Path, "/manage/") || r.URL.Path == "/frame" || strings.HasPrefix(r.URL.Path, "/frame/")) && !managementLAN(r) {
 			http.Error(w, "LAN access only", 403)
 			return
 		}
-		if r.URL.Path != "/health" && !managementPublic(r.URL.Path) {
+		if r.URL.Path != "/health" && !managementPublic(r.URL.Path) && !frameWebPublic(r.URL.Path) {
 			got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 && !s.managementReadAllowed(r) {
 				http.Error(w, "unauthorized", 401)

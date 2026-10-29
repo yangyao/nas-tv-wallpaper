@@ -137,3 +137,10 @@ The launcher includes a full-screen random photo mode with a transient glass
 filmstrip. Back enters it from Home; Down reveals nearby photos; Back exits.
 It reads original JPEGs through the NAS service independently of AI wallpaper
 batches. See [controls, cache limits and upgrade notes](docs/photo-frame.md).
+
+### Mac / browser photo frame
+
+Open `/frame/` on the NAS service for a quiet, full-window photo display, with
+prepared-image transitions, fixed geometry and bounded local cache. It can be
+saved as a Safari web app and placed fullscreen on a second monitor.
+See [web frame controls, offline limits and verification](docs/web-photo-frame.md).
