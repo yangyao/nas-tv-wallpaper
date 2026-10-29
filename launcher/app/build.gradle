@@ -11,8 +11,8 @@ android {
         applicationId providers.gradleProperty('launcherApplicationId').getOrElse('com.gathin.tvhome')
         minSdk 26
         targetSdk 34
-        versionCode 10
-        versionName '3.1-nas.2'
+        versionCode 11
+        versionName '3.2-frame.1'
     }
 
     buildTypes {
@@ -41,6 +41,7 @@ android {
 }
 
 dependencies {
+    implementation project(':photoframe')
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
     // Test only (never in the APK): plain JVM tests for the module card validators, src/test.

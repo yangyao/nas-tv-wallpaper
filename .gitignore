@@ -39,3 +39,5 @@ outpaint/config.local.json
 outpaint/results/
 outpaint/runtime/
 outpaint/face-boxes
+
+launcher/photoframe/build/

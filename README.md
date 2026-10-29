@@ -130,3 +130,10 @@ Go race tests and Android unit tests/lint/release compilation are the automated 
 Do not commit runtime files, tokens, photos, device dumps or signing keys. Generated packages and local backups are ignored. This project is not affiliated with QNAP, Sony, Google or Apple.
 
 The optional NAS integration now supports [published, immutable wallpaper batches](docs/PUBLISHED-WALLPAPERS.md): at most ten retained versions, complete-download switching on TV, and EXIF capture-date filtering to the most recent ten years. TV has no dependency on the AI worker and never substitutes raw photos in published mode. QNAP package 1.3.0 and TV client 3.1-nas.2 implement this protocol.
+
+### Random photo frame
+
+The launcher includes a full-screen random photo mode with a transient glass
+filmstrip. Back enters it from Home; Down reveals nearby photos; Back exits.
+It reads original JPEGs through the NAS service independently of AI wallpaper
+batches. See [controls, cache limits and upgrade notes](docs/photo-frame.md).

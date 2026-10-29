@@ -48,6 +48,7 @@ type Sampler struct {
 	inspect         func(string) (PhotoMeta, error)
 	maxCandidates   int
 	maxAgeYears     int
+	originals       bool
 	reads           int
 	budget          time.Duration
 }
@@ -138,7 +139,7 @@ func (s *Sampler) window(path string) (*dirWindow, error) {
 			}
 			name := entry.Name()
 			if entry.IsDir() {
-				if path == s.root && !yearName.MatchString(name) {
+				if path == s.root && !s.originals && !yearName.MatchString(name) {
 					continue
 				}
 				if len(w.dirs) < 256 {
@@ -204,6 +205,9 @@ func photoID(relative string, size, modified int64) string {
 	return hex.EncodeToString(sum[:16])
 }
 func (s *Sampler) Batch(ctx context.Context, count int, exclude []string) ([]Photo, error) {
+	return s.sample(ctx, count, exclude, false)
+}
+func (s *Sampler) sample(ctx context.Context, count int, exclude []string, allowRecent bool) ([]Photo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads = 0
@@ -239,7 +243,7 @@ func (s *Sampler) Batch(ctx context.Context, count int, exclude []string) ([]Pho
 		if selected[id] {
 			continue
 		}
-		if old, recent := s.history.Photos[id]; recent && time.Since(time.Unix(0, old.Seen)) < 30*24*time.Hour {
+		if old, recent := s.history.Photos[id]; !allowRecent && recent && time.Since(time.Unix(0, old.Seen)) < 30*24*time.Hour {
 			continue
 		}
 		if t, skip := s.history.Rejected[id]; skip && time.Now().Unix()-t < 7*86400 {
@@ -247,7 +251,11 @@ func (s *Sampler) Batch(ctx context.Context, count int, exclude []string) ([]Pho
 		}
 		checked++
 		meta, e := s.inspect(path)
-		if e != nil || !eligible(meta) || !recentTaken(meta.Taken, time.Now(), s.maxAgeYears) {
+		accepted := e == nil && eligible(meta) && recentTaken(meta.Taken, time.Now(), s.maxAgeYears)
+		if s.originals {
+			accepted = e == nil && meta.Width > 0 && meta.Height > 0 && int64(meta.Width)*int64(meta.Height) <= 100_000_000 && info.Size() <= 40<<20
+		}
+		if !accepted {
 			s.history.Rejected[id] = time.Now().Unix()
 			continue
 		}
@@ -271,7 +279,7 @@ func (s *Sampler) Photo(id string) (Photo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.history.Photos[id]
-	if !ok || !recentTaken(p.Meta.Taken, time.Now(), s.maxAgeYears) {
+	if !ok || (!s.originals && !recentTaken(p.Meta.Taken, time.Now(), s.maxAgeYears)) {
 		return Photo{}, os.ErrNotExist
 	}
 	return p, nil

@@ -1605,7 +1605,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onBackPressed() {
-        // Home screen: Back goes nowhere.
+        if (NasPhotoSettings.prefs(this).getBoolean("frame_enabled", true))
+            startActivity(new android.content.Intent(this, PhotoFrameActivity.class));
     }
 
     // ---- glass highlight -------------------------------------------------------------------------

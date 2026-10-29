@@ -101,6 +101,7 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".PhotoFrameActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
         <activity android:name=".NasPhotoSettingsActivity" android:exported="false" />
         <activity
             android:name=".LauncherSettingsActivity"

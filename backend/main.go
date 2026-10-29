@@ -24,6 +24,7 @@ type Server struct {
 	published            *PublishedStore
 	outpaint             *PaintQueue
 	sampler              *Sampler
+	frames               *Sampler
 	token, cache         string
 	batchGate, imageGate chan struct{}
 }
@@ -48,6 +49,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/manage/thumbs/", s.managementThumbnail)
 	mux.HandleFunc("/manage/preview/", s.managementPreview)
 	mux.HandleFunc("/v1/batch", s.batch)
+	mux.HandleFunc("/v1/frame/batch", s.frameBatch)
+	mux.HandleFunc("/v1/frame/photos/", s.frameImage)
 	mux.HandleFunc("/v2/wallpapers/latest", s.publishedLatest)
 	mux.HandleFunc("/v2/wallpapers/assets/", s.publishedAsset)
 	mux.HandleFunc("/v1/photos/", s.image)
@@ -244,6 +247,11 @@ func main() {
 		sampler.maxAgeYears = years
 	}
 	app := &Server{startedAt: time.Now(), sampler: sampler, token: token, cache: filepath.Join(*data, "images"), batchGate: make(chan struct{}, 1), imageGate: make(chan struct{}, 1)}
+	app.frames, e = NewSampler(*root, filepath.Join(*data, "frame-history.json"))
+	if e != nil {
+		log.Fatal(e)
+	}
+	app.frames.originals = true
 	if os.Getenv("NAS_PHOTO_OUTPAINT") == "1" {
 		app.outpaint, e = newPaintQueue(filepath.Join(*data, "outpaint"), os.Getenv("NAS_PHOTO_OUTPAINT_AUTOFILL") == "1", os.Getenv("NAS_PHOTO_OUTPAINT_SERVE") == "1")
 		if e != nil {
