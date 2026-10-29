@@ -90,7 +90,7 @@ final class FrameView extends View {
         panel.set((getWidth()-width)/2,bottom-height,(getWidth()+width)/2,bottom);
         int layer=c.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(alpha*255));
         // A light translucent pane: no artificial dark outer slab or shadow.
-        paint.setShader(null);paint.setColor(0x24FFFFFF);
+        paint.setShader(null);paint.setColor(0x34FFFFFF);
         c.drawRoundRect(panel,dp(26),dp(26),paint);
         shaderMatrix.setScale(panel.width(),panel.height());shaderMatrix.postTranslate(panel.left,panel.top);sheen.setLocalMatrix(shaderMatrix);rim.setLocalMatrix(shaderMatrix);paint.setShader(sheen);paint.setAlpha(255);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(1));paint.setShader(rim);c.drawRoundRect(panel,dp(26),dp(26),paint);paint.setShader(null);paint.setStyle(Paint.Style.FILL);
